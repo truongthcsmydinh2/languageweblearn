@@ -1,0 +1,279 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model users {
+  id           Int          @id @default(autoincrement())
+  email        String
+  created_at   DateTime     @default(now())
+  display_name String?
+  firebase_uid String       @unique
+  is_admin     Boolean      @default(false)
+  last_login   DateTime?
+  photo_url    String?
+  terms        terms[]
+  vocab_sets   vocab_sets[]
+}
+
+model vocab_sets {
+  id           Int         @id @default(autoincrement())
+  name         String
+  description  String?
+  created_at   DateTime    @default(now())
+  firebase_uid String
+  set_terms    set_terms[]
+  user         users       @relation(fields: [firebase_uid], references: [firebase_uid], onDelete: Cascade)
+
+  @@index([firebase_uid], map: "vocab_sets_firebase_uid_fkey")
+}
+
+model terms {
+  id               Int         @id @default(autoincrement())
+  vocab            String
+  meanings         Json
+  level_en         Int         @default(0)
+  level_vi         Int         @default(0)
+  review_time_en   BigInt      @default(0)
+  review_time_vi   BigInt      @default(0)
+  notes            String?
+  part_of_speech   String?
+  created_at       DateTime    @default(now())
+  example_sentence String?
+  firebase_uid     String
+  last_review_en   BigInt      @default(0)
+  last_review_vi   BigInt      @default(0)
+  updated_at       DateTime    @default(now())
+  set_terms        set_terms[]
+  user             users       @relation(fields: [firebase_uid], references: [firebase_uid], onDelete: Cascade)
+
+  @@index([firebase_uid], map: "terms_firebase_uid_fkey")
+}
+
+model set_terms {
+  vocab_set_id Int
+  term_id      Int
+  term         terms      @relation(fields: [term_id], references: [id], onDelete: Cascade)
+  vocab_set    vocab_sets @relation(fields: [vocab_set_id], references: [id], onDelete: Cascade)
+
+  @@id([vocab_set_id, term_id])
+  @@index([term_id], map: "set_terms_term_id_fkey")
+}
+
+model api_keys {
+  id          Int           @id @default(autoincrement())
+  service     String
+  api_key     String
+  status      ApiKeyStatus  @default(ACTIVE)
+  created_at  DateTime      @default(now())
+  updated_at  DateTime      @default(now())
+  token_usage token_usage[]
+}
+
+model token_usage {
+  id          Int      @id @default(autoincrement())
+  api_key_id  Int
+  service     String
+  tokens_used Int      @default(0)
+  cost        Decimal  @default(0.000000000000000000000000000000)
+  timestamp   DateTime @default(now())
+  api_key     api_keys @relation(fields: [api_key_id], references: [id], onDelete: Cascade)
+
+  @@index([api_key_id], map: "token_usage_api_key_id_fkey")
+}
+
+model dictation_lessons {
+  id         Int      @id @default(autoincrement())
+  title      String
+  content    String
+  audio_url  String?
+  created_at DateTime @default(now())
+}
+
+model WritingLesson {
+  id          Int                    @id @default(autoincrement())
+  title       String
+  content     String                 @db.Text
+  created_at  DateTime               @default(now())
+  updated_at  DateTime               @default(now())
+  level       WritingLevel           @default(BEGINNER)
+  type        WritingType            @default(EMAILS)
+  sentences   WritingSentence[]
+  submissions writing_submissions[]
+  progress    user_lesson_progress[]
+}
+
+model WritingSentence {
+  id             Int                   @id @default(autoincrement())
+  lesson_id      Int
+  sentence_order Int
+  vietnamese     String
+  answer_key     String?               @db.Text
+  lesson         WritingLesson         @relation(fields: [lesson_id], references: [id], onDelete: Cascade)
+  submissions    writing_submissions[]
+
+  @@unique([lesson_id, sentence_order])
+}
+
+model writing_submissions {
+  id                Int              @id @default(autoincrement())
+  lesson_id         Int
+  sentence_id       Int?
+  user_answer       String           @db.Text
+  original_sentence String           @db.Text
+  score             Int
+  feedback          String           @db.Text
+  errors            String           @db.Text
+  suggestions       String           @db.Text
+  corrected_version String?          @db.Text
+  advice            String?          @db.Text
+  created_at        DateTime         @default(now())
+  lesson            WritingLesson    @relation(fields: [lesson_id], references: [id], onDelete: Cascade)
+  sentence          WritingSentence? @relation(fields: [sentence_id], references: [id], onDelete: Cascade)
+
+  @@index([lesson_id], map: "writing_submissions_lesson_id_fkey")
+  @@index([sentence_id], map: "writing_submissions_sentence_id_fkey")
+}
+
+model user_lesson_progress {
+  id               Int           @id @default(autoincrement())
+  firebase_uid     String
+  lesson_id        Int
+  current_sentence Int           @default(0)
+  completed        Boolean       @default(false)
+  created_at       DateTime      @default(now())
+  updated_at       DateTime      @default(now()) @updatedAt
+  lesson           WritingLesson @relation(fields: [lesson_id], references: [id], onDelete: Cascade)
+
+  @@unique([firebase_uid, lesson_id])
+  @@index([firebase_uid], map: "user_lesson_progress_firebase_uid_idx")
+  @@index([lesson_id], map: "user_lesson_progress_lesson_id_fkey")
+}
+
+model Employee {
+  employee_id String      @id
+  full_name   String
+  role        String
+  created_at  DateTime    @default(now())
+  slots       ShiftSlot[] @relation("EmployeeSlots")
+}
+
+model ShiftSlot {
+  slot_id              Int         @id @default(autoincrement())
+  week_start_date      DateTime
+  day_of_week          Int
+  shift_period         ShiftPeriod
+  role                 ShiftRole
+  position             Int
+  assigned_employee_id String?
+  is_fixed             Boolean     @default(false)
+  employee             Employee?   @relation("EmployeeSlots", fields: [assigned_employee_id], references: [employee_id])
+
+  @@index([assigned_employee_id], map: "ShiftSlot_assigned_employee_id_fkey")
+}
+
+enum ApiKeyStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum WritingLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum WritingType {
+  EMAILS
+  DIARIES
+  ESSAYS
+  ARTICLES
+  STORIES
+  REPORTS
+}
+
+enum ShiftPeriod {
+  SANG
+  CHIEU
+  TOI
+}
+
+enum ShiftRole {
+  PHA_CHE
+  ORDER
+}
+
+// IELTS Reading Models
+model ielts_reading_passages {
+  id                Int                        @id @default(autoincrement())
+  title             String
+  content           String                     @db.Text
+  questions_content String?                    @db.Text
+  level             IeltsReadingLevel          @default(intermediate)
+  category          String?
+  time_limit        Int                        @default(20)
+  is_active         Boolean                    @default(true)
+  created_at        DateTime                   @default(now())
+  updated_at        DateTime                   @default(now()) @updatedAt
+  questions         ielts_reading_questions[]
+  attempts          ielts_reading_attempts[]
+}
+
+model ielts_reading_questions {
+  id              Int                    @id @default(autoincrement())
+  passage_id      Int
+  question_text   String                 @db.Text
+  question_type   IeltsQuestionType
+  options         Json?
+  correct_answer  String                 @db.Text
+  explanation     String?                @db.Text
+  note            String?                @db.Text
+  order_index     Int
+  created_at      DateTime               @default(now())
+  passage         ielts_reading_passages @relation(fields: [passage_id], references: [id], onDelete: Cascade)
+
+  @@index([passage_id], map: "ielts_reading_questions_passage_id_fkey")
+}
+
+model ielts_reading_attempts {
+  id               Int                    @id @default(autoincrement())
+  firebase_uid     String
+  passage_id       Int
+  score            Int
+  total_questions  Int
+  correct_answers  Int
+  time_taken       Int?
+  answers          Json?
+  completed_at     DateTime               @default(now())
+  passage          ielts_reading_passages @relation(fields: [passage_id], references: [id], onDelete: Cascade)
+
+  @@index([passage_id], map: "ielts_reading_attempts_passage_id_fkey")
+  @@index([firebase_uid], map: "ielts_reading_attempts_firebase_uid_idx")
+}
+
+enum IeltsReadingLevel {
+  beginner
+  intermediate
+  advanced
+}
+
+enum IeltsQuestionType {
+  multiple_choice
+  true_false_not_given
+  yes_no_not_given
+  matching_headings
+  matching_information
+  matching_features
+  matching_sentence_endings
+  sentence_completion
+  summary_completion
+  note_completion
+  table_completion
+  flow_chart_completion
+  diagram_labelling
+  short_answer_questions
+}
