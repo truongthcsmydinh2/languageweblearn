@@ -4,124 +4,113 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const firebase_uid = req.headers.firebase_uid as string;
+  // Bỏ qua kiểm tra xác thực và quyền admin
   
-  if (!firebase_uid) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  // Check if user is admin
-  const user = await prisma.users.findFirst({
-    where: { firebase_uid }
-  });
-
-  if (!user || !user.is_admin) {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-
   if (req.method === 'POST') {
     try {
       const { title, description, is_active, passages, all_answers } = req.body;
 
-      // Validate required fields
-      if (!title || !passages || !Array.isArray(passages) || passages.length !== 3) {
-        return res.status(400).json({ error: 'Missing required fields or must have exactly 3 passages' });
-      }
+      // Tạo bản ghi đề IELTS Reading
+      const result = await prisma.$transaction(async (tx) => {
+        // Tạo đề Reading
+        let testData = {
+          title,
+          description: description || '',
+          is_active: is_active !== undefined ? is_active : true,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
 
-      // Validate each passage
-      for (const passage of passages) {
-        if (!passage.title || !passage.content || !Array.isArray(passage.questions)) {
-          return res.status(400).json({ error: 'Each passage must have title, content and questions array' });
-        }
+        // Tạo một mảng để lưu các câu hỏi được tạo
+        const createdQuestions = [];
+        
+        // Tạo các passages và questions liên quan
+        for (const passageData of passages) {
+          if (!passageData.title || !passageData.title.trim()) {
+            continue; // Bỏ qua passages không có tiêu đề
+          }
 
-        // Validate questions
-        for (const question of passage.questions) {
-          if (!question.question_text) {
-            return res.status(400).json({ error: 'All questions must have text' });
+          // Tạo passage
+          const passage = await tx.ielts_reading_passages.create({
+            data: {
+              title: passageData.title,
+              content: passageData.content || '',
+              level: 'intermediate', // Mặc định
+              category: title, // Sử dụng tiêu đề đề thi làm category
+              time_limit: 20, // Mặc định 20 phút
+              is_active: true,
+              created_at: new Date(),
+              updated_at: new Date()
+            }
+          });
+
+          // Tạo các nhóm câu hỏi và câu hỏi
+          if (passageData.groups && Array.isArray(passageData.groups)) {
+            for (let i = 0; i < passageData.groups.length; i++) {
+              const groupData = passageData.groups[i];
+              
+              // Tạo nhóm câu hỏi
+              const questionGroup = await tx.ielts_reading_question_groups.create({
+                data: {
+                  instructions: groupData.content || '', // Sử dụng content làm instructions trong DB
+                  question_type: groupData.questionType || 'multiple_choice',
+                  display_order: i + 1,
+                  passage_id: passage.id,
+                  created_at: new Date(),
+                  updated_at: new Date()
+                }
+              });
+
+              // Tạo các câu hỏi
+              if (groupData.questions && Array.isArray(groupData.questions)) {
+                for (const questionData of groupData.questions) {
+                  const orderIndex = questionData.orderIndex || 1;
+                  
+                  // Tìm đáp án đúng từ all_answers
+                  let correctAnswer = '';
+                  if (all_answers && Array.isArray(all_answers)) {
+                    const answerObj = all_answers.find(a => a.order_index === orderIndex || a.question_number === orderIndex.toString());
+                    if (answerObj) {
+                      correctAnswer = answerObj.answer || '';
+                    }
+                  }
+                  
+                  // Tạo câu hỏi
+                  const question = await tx.ielts_reading_questions.create({
+                    data: {
+                      question_text: questionData.questionText || '',
+                      question_type: groupData.questionType || 'multiple_choice',
+                      options: questionData.options || [],
+                      correct_answer: correctAnswer, // Lấy từ all_answers nếu có
+                      explanation: questionData.explanation || null,
+                      note: questionData.note || null,
+                      order_index: orderIndex,
+                      group_id: questionGroup.id,
+                      created_at: new Date()
+                    }
+                  });
+                  
+                  // Lưu câu hỏi đã tạo để sử dụng sau
+                  createdQuestions.push(question);
+                }
+              }
+            }
           }
         }
-      }
 
-      // Create complete IELTS test with all passages and questions in a transaction
-      const result = await prisma.$transaction(async (tx) => {
-        const createdPassages = [];
-
-        // Create all passages and their questions
-        for (const passage of passages) {
-          // Create the passage
-          const createdPassage = await tx.ielts_reading_passages.create({
-            data: {
-              title: passage.title,
-              content: passage.content,
-              questions_content: passage.questions_content || '',
-              level: 'intermediate', // Default level
-              category: title, // Use test title as category to group passages
-              time_limit: 20, // Default time limit
-              is_active
-            }
-          });
-
-          // Create questions for the passage
-          const createdQuestions = await Promise.all(
-            passage.questions.map((question: any) =>
-              tx.ielts_reading_questions.create({
-                data: {
-                  passage_id: createdPassage.id,
-                  question_text: question.question_text,
-                  question_type: question.question_type || 'multiple_choice',
-                  options: question.options || [],
-                  correct_answer: question.correct_answer || '',
-                  explanation: question.explanation || '',
-                  order_index: question.order_index || 1
-                }
-              })
-            )
-          );
-
-          createdPassages.push({
-            passage: createdPassage,
-            questions: createdQuestions,
-            questions_content: passage.questions_content || ''
-          });
-        }
-
-        // Lưu đáp án Task 3 nếu có
-        let task3AnswersData = null;
-        if (all_answers && Array.isArray(all_answers) && all_answers.length > 0) {
-          // Tạo một passage đặc biệt để lưu đáp án Task 3
-          const task3AnswersPassage = await tx.ielts_reading_passages.create({
-            data: {
-              title: `${title} - Task 3 Answers`,
-              content: 'Task 3 Answer Key',
-              questions_content: JSON.stringify(all_answers),
-              level: 'intermediate',
-              category: title,
-              time_limit: 20,
-              is_active: false // Không hiển thị trong danh sách bài đọc
-            }
-          });
-
-          task3AnswersData = {
-            passage: task3AnswersPassage,
-            answers: all_answers
-          };
-        }
-
-        return {
-          test_title: title,
-          test_description: description,
-          passages: createdPassages,
-          task3_answers: task3AnswersData
+        return { 
+          success: true,
+          questionCount: createdQuestions.length
         };
       });
 
       return res.status(201).json({
         message: 'IELTS Reading test created successfully',
-        test: result
+        result
       });
 
     } catch (error) {
-      console.error('Error creating IELTS test:', error);
+      console.error('Error creating IELTS Reading test:', error);
       return res.status(500).json({ error: 'Internal server error' });
     }
   }

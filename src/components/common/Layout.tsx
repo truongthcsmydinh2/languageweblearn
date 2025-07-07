@@ -6,9 +6,10 @@ import { useAuth } from '../../contexts/AuthContext';
 interface LayoutProps {
   children: ReactNode;
   title?: string;
+  hideNavbar?: boolean;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, title = 'Ứng dụng học từ vựng' }) => {
+const Layout: React.FC<LayoutProps> = ({ children, title = 'Ứng dụng học từ vựng', hideNavbar = false }) => {
   const { user, logout } = useAuth();
 
   return (
@@ -20,7 +21,7 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Ứng dụng học t
       </Head>
       
       <div className="min-h-screen flex flex-col bg-gray-800">
-        <header className="bg-gray-700 shadow-sm">
+        <header className={hideNavbar ? 'hidden' : 'bg-gray-700 shadow-sm'}>
           <div className="container mx-auto px-4">
             <div className="flex justify-between items-center py-3">
               <div className="flex items-center">

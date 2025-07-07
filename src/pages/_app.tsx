@@ -36,16 +36,15 @@ export default function App({ Component, pageProps }: AppProps) {
     );
   }
 
+  // Hỗ trợ getLayout cho từng page
+  const getLayout = (Component as any).getLayout || ((page: React.ReactNode) => <Layout>{page}</Layout>);
+
   return (
     <AuthProvider>
       <VocabProvider>
         <LearningSessionProvider>
           <UserSettingsProvider>
-            <Layout>
-              <main>
-                <Component {...pageProps} />
-              </main>
-            </Layout>
+            {getLayout(<Component {...pageProps} />)}
           </UserSettingsProvider>
         </LearningSessionProvider>
       </VocabProvider>

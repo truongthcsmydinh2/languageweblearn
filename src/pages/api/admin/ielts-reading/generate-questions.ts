@@ -3,6 +3,30 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+interface GeminiQuestion {
+  questionText?: string;
+  question_text?: string;
+  question?: string;
+  text?: string;
+  correctAnswer?: string;
+  correct_answer?: string;
+  answer?: string;
+  correct?: string;
+  options?: any;
+  explanation?: string;
+  note?: string;
+}
+
+interface GeminiGroup {
+  instructions?: string;
+  instruction?: string;
+  questionType?: string;
+  question_type?: string;
+  type?: string;
+  questions?: GeminiQuestion[];
+  question?: GeminiQuestion[];
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const firebase_uid = req.headers.firebase_uid as string;
   
@@ -31,24 +55,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ error: 'Thiếu câu hỏi thô' });
       }
 
-      // Tạo prompt cho Gemini để sắp xếp và định dạng câu hỏi
+      // Tạo prompt cho Gemini để tạo cấu trúc groups
       const prompt = `
-You are a professional IELTS teacher. Here are raw questions that need to be sorted and formatted. Your task is to extract ONLY the actual questions, not the instruction headers.
+You are a professional IELTS teacher. Analyze the following reading text and raw questions to create a structured set of question groups.
 
 **Passage Title**: ${passage_title || 'IELTS Reading Passage'}
 
 **Reading Content**:
 ${content}
 
-**Raw Questions (need sorting and formatting)**:
+**Raw Questions (need to be organized into groups)**:
 ${raw_questions}
 
-**CRITICAL INSTRUCTIONS - NOTIFICATION-BASED LOGIC**:
-1. Extract ONLY the actual question statements, ignore all instruction headers
-2. Use NOTIFICATION-BASED logic: Each notification controls ALL questions until the next notification
-3. Do NOT include instruction text like "Questions 1-7:", "Do the following statements agree", etc.
-4. Do NOT include explanation text like "TRUE if...", "FALSE if...", etc.
-5. Extract only the numbered questions or statements that need answers
+**CRITICAL INSTRUCTIONS**:
+1. Analyze the raw questions and organize them into logical groups based on question type and instructions
+2. Each group should have clear instructions and a specific question type
+3. Extract ONLY the actual question statements, ignore instruction headers
+4. Use NOTIFICATION-BASED logic: Each notification controls ALL questions until the next notification
+5. Do NOT include instruction text like "Questions 1-7:", "Do the following statements agree", etc.
+6. Do NOT include explanation text like "TRUE if...", "FALSE if...", etc.
 
 **NOTIFICATION-BASED PROCESSING RULES**:
 - When you see "Notification: [QuestionType]" → ALL questions below this belong to this type until next notification
@@ -79,8 +104,47 @@ ${raw_questions}
 - "Notification: Complete the Flow-chart" → ALL questions below are "flow_chart_completion"
 - "Notification: Label the Diagram" → ALL questions below are "diagram_labelling"
 
+**REQUIRED OUTPUT FORMAT**:
+Return a single JSON object with a "groups" array. Each group must contain:
+- "instructions": Clear instructions for this group of questions
+- "questionType": The IELTS question type
+- "questions": Array of question objects
+
+**Example Output Format**:
+{
+  "groups": [
+    {
+      "instructions": "Questions 1-7: Do the following statements agree with the information given in the reading passage? Write TRUE, FALSE, or NOT GIVEN.",
+      "questionType": "true_false_not_given",
+      "questions": [
+        {
+          "questionText": "People had expected Andy Murray to become the world's top tennis player for at least five years before 2016.",
+          "correctAnswer": "NOT GIVEN"
+        },
+        {
+          "questionText": "The change that Andy Murray made to his rackets attracted a lot of attention.",
+          "correctAnswer": "TRUE"
+        }
+      ]
+    },
+    {
+      "instructions": "Questions 8-13: Complete the notes below. Choose ONE WORD ONLY from the passage for each answer.",
+      "questionType": "note_completion",
+      "questions": [
+        {
+          "questionText": "Mike and Bob Bryan made changes to the types of ________ used on their racket frames.",
+          "correctAnswer": "strings"
+        },
+        {
+          "questionText": "Players were not allowed to use the spaghetti-strung racket because of the amount ________ it created.",
+          "correctAnswer": "spin"
+        }
+      ]
+    }
+  ]
+}
+
 **IMPORTANT RULES**:
-- Each notification controls ALL questions until the next notification appears
 - Extract ONLY numbered questions or statements (like "Q1. People had expected...", "Q2. The change that...")
 - Do NOT extract instruction text (like "Notification:", "Note:", "Questions 1-7:")
 - Do NOT extract explanation text (like "TRUE if...", "FALSE if...")
@@ -88,121 +152,15 @@ ${raw_questions}
 - Each question should be a complete, standalone statement
 - Apply the notification's question type to ALL questions in that section
 - Apply the notification's notes to ALL questions in that section
-
-**Example Processing**:
-Input: "Notification: True_False_NotGiven
-
-Q1. People had expected Andy Murray to become the world's top tennis player for at least five years before 2016.
-
-Q2. The change that Andy Murray made to his rackets attracted a lot of attention.
-
-Q3. Most of the world's top players take a professional racket stringer on tour with them.
-
-Q4. Mike and Bob Bryan use rackets that are light in comparison to the majority of rackets.
-
-Q5. Werner Fischer played with a spaghetti-strung racket that he designed himself.
-
-Q6. The weather can affect how professional players adjust the strings on their rackets.
-
-Q7. It was believed that the change Pete Sampras made to his rackets contributed to his strong serve.
-
-Notification: Complete the Notes
-
-Note: Choose ONE WORD ONLY from the passage for each answer.
-
-Q8. Mike and Bob Bryan made changes to the types of ________ used on their racket frames.
-
-Q9. Players were not allowed to use the spaghetti-strung racket because of the amount ________ it created.
-
-Q10. Changes to rackets can be regarded as being as important as players' diets or the ________ they do.
-
-Q11. All rackets used to have natural strings made from the ________ of animals.
-
-Q12. Pete Sampras had metal ________ put into the frames of his rackets.
-
-Q13. Gonçalo Oliveira changed ________ on his racket handles."
-
-Output: [
-  {
-    "question_text": "People had expected Andy Murray to become the world's top tennis player for at least five years before 2016.",
-    "question_type": "true_false_not_given"
-  },
-  {
-    "question_text": "The change that Andy Murray made to his rackets attracted a lot of attention.",
-    "question_type": "true_false_not_given"
-  },
-  {
-    "question_text": "Most of the world's top players take a professional racket stringer on tour with them.",
-    "question_type": "true_false_not_given"
-  },
-  {
-    "question_text": "Mike and Bob Bryan use rackets that are light in comparison to the majority of rackets.",
-    "question_type": "true_false_not_given"
-  },
-  {
-    "question_text": "Werner Fischer played with a spaghetti-strung racket that he designed himself.",
-    "question_type": "true_false_not_given"
-  },
-  {
-    "question_text": "The weather can affect how professional players adjust the strings on their rackets.",
-    "question_type": "true_false_not_given"
-  },
-  {
-    "question_text": "It was believed that the change Pete Sampras made to his rackets contributed to his strong serve.",
-    "question_type": "true_false_not_given"
-  },
-  {
-    "question_text": "Mike and Bob Bryan made changes to the types of ________ used on their racket frames.",
-    "question_type": "note_completion"
-  },
-  {
-    "question_text": "Players were not allowed to use the spaghetti-strung racket because of the amount ________ it created.",
-    "question_type": "note_completion"
-  },
-  {
-    "question_text": "Changes to rackets can be regarded as being as important as players' diets or the ________ they do.",
-    "question_type": "note_completion"
-  },
-  {
-    "question_text": "All rackets used to have natural strings made from the ________ of animals.",
-    "question_type": "note_completion"
-  },
-  {
-    "question_text": "Pete Sampras had metal ________ put into the frames of his rackets.",
-    "question_type": "note_completion"
-  },
-  {
-    "question_text": "Gonçalo Oliveira changed ________ on his racket handles.",
-    "question_type": "note_completion"
-  }
-]
-
-**JSON Format**:
-[
-  {
-    "question_text": "Formatted question text",
-    "question_type": "multiple_choice|true_false_not_given|yes_no_not_given|matching_headings|matching_information|matching_features|matching_sentence_endings|sentence_completion|summary_completion|note_completion|table_completion|flow_chart_completion|diagram_labelling|short_answer_questions",
-    "options": ["A", "B", "C", "D"] (only for multiple_choice),
-    "note": "Note text if applicable" (only for questions that have notes)
-  }
-]
-
-**Notes**: 
+- Group questions logically by their instructions and question type
+- Include the "correctAnswer" field for each question (you can provide reasonable answers based on the text)
 - All questions must be in English
 - Questions must be appropriate for IELTS difficulty (B1-C1)
 - Sort in logical order and easy to understand
-- Return only formatted questions, no answers needed
-- Use notification-based logic to determine question type accurately
-- Keep the exact IELTS question type names
-- Each notification controls ALL questions until the next notification
+- Use the exact IELTS question type names
 - For multiple choice with multiple answers, keep the question intact
 - For completion questions, keep the blank format (like "________")
 - For completion questions, extract the sentences containing blanks
-- Extract ONLY numbered questions or statements, ignore all instruction text
-- Apply the notification's question type to ALL questions in that section
-- Apply the notification's notes to ALL questions in that section
-- Include the "note" field for questions that inherit notes from their notification
-- For example: If notification has "Note: Choose ONE WORD ONLY", then ALL questions in that section should have "note": "Choose ONE WORD ONLY"
 `;
 
       console.log('📤 Gửi yêu cầu tạo câu hỏi tới Gemini API');
@@ -258,44 +216,78 @@ Output: [
       }
 
       // Parse JSON từ response
-      let questions = [];
+      let groups = [];
       try {
-        // Tìm JSON array trong text
-        const jsonMatch = questionsText.match(/\[[\s\S]*\]/);
+        // Tìm JSON object trong text
+        const jsonMatch = questionsText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
-          questions = JSON.parse(jsonMatch[0]);
+          const parsed = JSON.parse(jsonMatch[0]);
+          groups = parsed.groups || [];
         } else {
           // Fallback: thử parse toàn bộ text
-          questions = JSON.parse(questionsText);
+          const parsed = JSON.parse(questionsText);
+          groups = parsed.groups || [];
         }
         
-        // Đảm bảo questions là array
-        if (!Array.isArray(questions)) {
-          throw new Error('Response không phải array');
+        // Đảm bảo groups là array
+        if (!Array.isArray(groups)) {
+          throw new Error('Response không phải array groups');
         }
         
-        // Validate và format questions
-        questions = questions.map((q, index) => ({
-          question_text: q.question_text || '',
-          question_type: q.question_type || 'multiple_choice',
-          options: q.options || ['A', 'B', 'C', 'D'],
-          note: q.note || null,
-          order_index: index + 1
-        })).filter(q => q.question_text);
+        // Chuẩn hóa dữ liệu từ Gemini
+        const normalizedGroups = groups.map((group: GeminiGroup) => {
+          // Chuẩn hóa key bị cắt
+          const normalizedGroup = {
+            instructions: group.instructions || group.instruction || '',
+            questionType: group.questionType || group.question_type || group.type || 'multiple_choice',
+            questions: [] as any[]
+          };
+          
+          // Chuẩn hóa questions array
+          const questions = group.questions || group.question || [];
+          if (Array.isArray(questions)) {
+            normalizedGroup.questions = questions.map((q: GeminiQuestion) => ({
+              questionText: q.questionText || q.question_text || q.question || q.text || '',
+              correctAnswer: q.correctAnswer || q.correct_answer || q.answer || q.correct || '',
+              options: q.options || null,
+              explanation: q.explanation || null,
+              note: q.note || null
+            }));
+          }
+          
+          return normalizedGroup;
+        });
         
-        console.log('✅ Parsed questions:', questions.length);
+        console.log('✅ Parsed groups:', normalizedGroups.length);
+        
+        // Trả về cả cấu trúc groups và questions để tương thích
+        const flattenedQuestions: any[] = [];
+        normalizedGroups.forEach(group => {
+          group.questions.forEach((question: any, index: number) => {
+            flattenedQuestions.push({
+              question_text: question.questionText,
+              question_type: group.questionType,
+              correct_answer: question.correctAnswer,
+              options: question.options,
+              explanation: question.explanation,
+              note: question.note,
+              order_index: flattenedQuestions.length + 1
+            });
+          });
+        });
+        
+        return res.status(200).json({
+          success: true,
+          groups: normalizedGroups,
+          questions: flattenedQuestions,
+          rawResponse: questionsText
+        });
         
       } catch (parseError) {
-        console.error('❌ Lỗi parse JSON questions:', parseError);
+        console.error('❌ Lỗi parse JSON groups:', parseError);
         console.error('❌ Raw text:', questionsText);
-        return res.status(500).json({ error: 'Lỗi parse JSON câu hỏi từ Gemini', detail: questionsText });
+        return res.status(500).json({ error: 'Lỗi parse JSON groups từ Gemini', detail: questionsText });
       }
-
-      return res.status(200).json({
-        success: true,
-        questions: questions,
-        rawResponse: questionsText
-      });
 
     } catch (error) {
       console.error('❌ Lỗi khi tạo câu hỏi với Gemini:', error);

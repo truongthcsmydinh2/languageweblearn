@@ -14,9 +14,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         is_active: true
       },
       include: {
+        question_groups: {
+          include: {
+            questions: true
+          }
+        },
         _count: {
           select: {
-            questions: true
+            question_groups: true
           }
         }
       },
@@ -25,15 +30,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     });
 
-    const formattedPassages = passages.map(passage => ({
-      id: passage.id,
-      title: passage.title,
-      content: passage.content,
-      level: passage.level,
-      category: passage.category,
-      time_limit: passage.time_limit,
-      question_count: passage._count.questions
-    }));
+    const formattedPassages = passages.map(passage => {
+      // Đếm tổng số câu hỏi trong tất cả group
+      const totalQuestions = passage.question_groups.reduce((sum, group) => sum + group.questions.length, 0);
+      return {
+        id: passage.id,
+        title: passage.title,
+        content: passage.content,
+        level: passage.level,
+        category: passage.category,
+        time_limit: passage.time_limit,
+        group_count: passage._count.question_groups,
+        question_count: totalQuestions
+      };
+    });
 
     return res.status(200).json({
       passages: formattedPassages

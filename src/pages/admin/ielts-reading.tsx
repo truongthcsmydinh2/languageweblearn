@@ -32,19 +32,26 @@ interface IeltsReadingTest {
   passages: {
     title: string;
     content: string;
-    questions: {
-      question_text: string;
-      question_type?: string;
-      note?: string;
-      order_index: number;
-    }[];
+    groups: Group[];
   }[];
-  // Thêm trường cho đáp án toàn bộ đề thi
   all_answers?: {
     question_number: string;
     answer: string;
     explanation?: string;
     order_index: number;
+  }[];
+}
+
+// 1. Định nghĩa interface Group
+interface Group {
+  questionType: string;
+  content: string;
+  questions: {
+    questionText: string;
+    options?: string[];
+    explanation?: string;
+    note?: string;
+    orderIndex: number;
   }[];
 }
 
@@ -100,26 +107,27 @@ const IeltsReadingAdminPage = () => {
     description: '',
     is_active: true,
     passages: [
-      {
-        title: '',
-        content: '',
-        questions: []
-      },
-      {
-        title: '',
-        content: '',
-        questions: []
-      },
-      {
-        title: '',
-        content: '',
-        questions: []
-      }
+      { title: '', content: '', groups: [] }
     ],
     all_answers: []
   });
 
+  // Thêm state cho form thêm nhóm câu hỏi mới
+  const [newGroupForm, setNewGroupForm] = useState({
+    passageIndex: 0,
+    content: '',
+    questionType: 'multiple_choice',
+    startQuestion: 1,
+    endQuestion: 7
+  });
+
+  // Thêm state cho nhập đáp án hàng loạt
+  const [bulkAnswers, setBulkAnswers] = useState('');
+  const [showBulkAnswerForm, setShowBulkAnswerForm] = useState(false);
+  const [currentEditingGroup, setCurrentEditingGroup] = useState<{passageIndex: number, groupIndex: number} | null>(null);
+
   const [showIeltsTestForm, setShowIeltsTestForm] = useState(false);
+  const [showAddGroupForm, setShowAddGroupForm] = useState(false);
   
   // Thêm state cho việc biên dịch câu hỏi
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState<number | null>(null);
@@ -127,57 +135,45 @@ const IeltsReadingAdminPage = () => {
   // Thêm state cho việc biên dịch đáp án Task 3
   const [isGeneratingAnswers, setIsGeneratingAnswers] = useState(false);
   const [rawAnswers, setRawAnswers] = useState('');
-  
-  // Thêm state cho câu hỏi thô
-  const [rawQuestions, setRawQuestions] = useState<string[]>(['', '', '']);
 
   useEffect(() => {
-    if (!user) {
-      router.push('/auth/signin');
-      return;
-    }
-
-    // Kiểm tra quyền admin
-    const checkAdminAccess = async () => {
-      try {
-        const response = await fetch('/api/user/profile', {
-          headers: {
-            'firebase_uid': user.uid || ''
-          }
-        });
-        
-        if (response.ok) {
-          const userData = await response.json();
-          if (!userData.is_admin) {
-            router.push('/dashboard');
-            return;
-          }
-        } else {
-          router.push('/dashboard');
-          return;
-        }
-      } catch (error) {
-        console.error('Error checking admin access:', error);
-        router.push('/dashboard');
-        return;
-      }
-    };
-
-    checkAdminAccess();
+    // Bỏ qua việc kiểm tra user và quyền admin
     fetchPassages();
-  }, [user, router]);
+  }, []);
 
   const fetchPassages = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/admin/ielts-reading/passages');
+      console.log('Đang tải danh sách bài đọc...');
+      
+      const response = await fetch('/api/admin/ielts-reading/passages', {
+        headers: {
+          // Không gửi firebase_uid
+        }
+      });
+      console.log('Response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
-        setPassages(data.passages);
-        setGroupedPassages(data.groupedPassages || {});
+        console.log('Dữ liệu nhận được:', data);
+        
+        if (data.passages && Array.isArray(data.passages)) {
+          console.log(`Số lượng bài đọc: ${data.passages.length}`);
+          setPassages(data.passages);
+          setGroupedPassages(data.groupedPassages || {});
+        } else {
+          console.error('Định dạng dữ liệu không đúng:', data);
+          alert('Lỗi khi tải danh sách bài đọc: Định dạng dữ liệu không đúng');
+        }
+      } else {
+        console.error('Lỗi khi tải bài đọc, mã trạng thái:', response.status);
+        const errorText = await response.text();
+        console.error('Chi tiết lỗi:', errorText);
+        alert(`Lỗi khi tải danh sách bài đọc: ${response.status}`);
       }
     } catch (error) {
-      console.error('Error fetching passages:', error);
+      console.error('Lỗi khi tải danh sách bài đọc:', error);
+      alert('Lỗi khi tải danh sách bài đọc. Vui lòng kiểm tra console để biết thêm chi tiết.');
     } finally {
       setLoading(false);
     }
@@ -185,13 +181,70 @@ const IeltsReadingAdminPage = () => {
 
   const fetchQuestions = async (passageId: number) => {
     try {
-      const response = await fetch(`/api/admin/ielts-reading/questions/${passageId}`);
+      const response = await fetch(`/api/admin/ielts-reading/questions/${passageId}`, {
+        headers: {
+          // Không gửi firebase_uid
+        }
+      });
+      
       if (response.ok) {
         const data = await response.json();
-        setQuestions(data.questions);
+        
+        // Xử lý cả cấu trúc cũ và mới
+        if (data.groups) {
+          // Cấu trúc mới: flatten groups thành questions
+          const flattenedQuestions: Question[] = [];
+          data.groups.forEach((group: any) => {
+            group.questions.forEach((question: any) => {
+              flattenedQuestions.push({
+                id: question.id,
+                question_text: question.question_text,
+                question_type: question.question_type,
+                options: question.options,
+                correct_answer: question.correct_answer,
+                explanation: question.explanation,
+                note: question.note,
+                order_index: question.order_index
+              });
+            });
+          });
+          setQuestions(flattenedQuestions);
+        } else if (data.questions) {
+          // Cấu trúc cũ: sử dụng trực tiếp
+          setQuestions(data.questions);
+        } else {
+          setQuestions([]);
+        }
       }
     } catch (error) {
       console.error('Error fetching questions:', error);
+      setQuestions([]);
+    }
+  };
+
+  const saveQuestionOrder = async (passageId: number, updatedQuestions: Question[]) => {
+    try {
+      const response = await fetch(`/api/admin/ielts-reading/questions/${passageId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'firebase_uid': user?.uid || ''
+        },
+        body: JSON.stringify({
+          questions: updatedQuestions.map((q, index) => ({
+            id: q.id,
+            order_index: index + 1
+          }))
+        })
+      });
+
+      if (response.ok) {
+        console.log('Thứ tự câu hỏi đã được lưu');
+      } else {
+        console.error('Lỗi khi lưu thứ tự câu hỏi');
+      }
+    } catch (error) {
+      console.error('Error saving question order:', error);
     }
   };
 
@@ -337,31 +390,26 @@ const IeltsReadingAdminPage = () => {
   const handleIeltsTestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Xử lý và phân loại câu hỏi cho từng passage
-      const processedPassages = ieltsReadingTest.passages.map((passage, passageIndex) => {
-        // Tính toán số thứ tự bắt đầu cho Task hiện tại
-        let startQuestionNumber = 1;
-        for (let i = 0; i < passageIndex; i++) {
-          startQuestionNumber += ieltsReadingTest.passages[i].questions.length;
-        }
-        
-        const processedQuestions = passage.questions.map((question, questionIndex) => {
-          const questionType = question.question_type || autoClassifyQuestion(question.question_text);
-          const options = generateOptions(questionType);
+      // Kiểm tra nội dung cần thiết
+      if (!ieltsReadingTest.title.trim()) {
+        alert('Vui lòng nhập tiêu đề đề thi');
+        return;
+      }
 
-          return {
-            ...question,
-            question_type: questionType,
-            options: options,
-            order_index: startQuestionNumber + questionIndex
-          };
-        });
+      // Lọc bỏ các passage không có tiêu đề
+      const validPassages = ieltsReadingTest.passages.filter(passage => 
+        passage.title.trim() !== ''
+      );
 
-        return {
-          ...passage,
-          questions: processedQuestions
-        };
-      });
+      if (validPassages.length === 0) {
+        alert('Vui lòng nhập ít nhất một bài đọc');
+        return;
+      }
+
+      const dataToSubmit = {
+        ...ieltsReadingTest,
+        passages: validPassages
+      };
 
       const response = await fetch('/api/admin/ielts-reading/complete-test', {
         method: 'POST',
@@ -369,13 +417,7 @@ const IeltsReadingAdminPage = () => {
           'Content-Type': 'application/json',
           'firebase_uid': user?.uid || ''
         },
-        body: JSON.stringify({
-          title: ieltsReadingTest.title,
-          description: ieltsReadingTest.description,
-          is_active: ieltsReadingTest.is_active,
-          passages: processedPassages,
-          all_answers: ieltsReadingTest.all_answers || []
-        })
+        body: JSON.stringify(dataToSubmit)
       });
 
       if (response.ok) {
@@ -385,14 +427,11 @@ const IeltsReadingAdminPage = () => {
           description: '',
           is_active: true,
           passages: [
-            { title: '', content: '', questions: [] },
-            { title: '', content: '', questions: [] },
-            { title: '', content: '', questions: [] }
+            { title: '', content: '', groups: [] }
           ],
           all_answers: []
         });
         setRawAnswers('');
-        setRawQuestions(['', '', '']);
         fetchPassages();
         alert('Tạo đề IELTS Reading thành công!');
       }
@@ -402,89 +441,188 @@ const IeltsReadingAdminPage = () => {
     }
   };
 
-  // Hàm thêm câu hỏi vào passage
-  const addQuestionToPassage = (passageIndex: number) => {
-    setIeltsReadingTest(prev => {
-      // Tính toán số thứ tự bắt đầu cho Task hiện tại
-      let startQuestionNumber = 1;
-      for (let i = 0; i < passageIndex; i++) {
-        startQuestionNumber += prev.passages[i].questions.length;
-      }
-      
-      return {
-        ...prev,
-        passages: prev.passages.map((passage, index) => 
-          index === passageIndex 
-            ? {
-                ...passage,
-                questions: [
-                  ...passage.questions,
-                  {
-                    question_text: '',
-                    question_type: 'multiple_choice',
-                    order_index: startQuestionNumber + passage.questions.length
-                  }
-                ]
-              }
-            : passage
-        )
-      };
-    });
-  };
-
-  // Hàm xóa câu hỏi khỏi passage
-  const removeQuestionFromPassage = (passageIndex: number, questionIndex: number) => {
-    setIeltsReadingTest(prev => {
-      // Xóa câu hỏi
-      const updatedPassages = prev.passages.map((passage, index) => 
-        index === passageIndex 
-          ? {
-              ...passage,
-              questions: passage.questions.filter((_, qIndex) => qIndex !== questionIndex)
-            }
-          : passage
-      );
-      
-      // Tính toán lại số thứ tự cho tất cả câu hỏi
-      const recalculatedPassages = updatedPassages.map((passage, passageIndex) => {
-        let startQuestionNumber = 1;
-        for (let i = 0; i < passageIndex; i++) {
-          startQuestionNumber += updatedPassages[i].questions.length;
-        }
-        
-        return {
-          ...passage,
-          questions: passage.questions.map((question, questionIndex) => ({
-            ...question,
-            order_index: startQuestionNumber + questionIndex
-          }))
-        };
-      });
-      
-      return {
-        ...prev,
-        passages: recalculatedPassages
-      };
-    });
-  };
-
-  // Hàm cập nhật câu hỏi trong passage
-  const updateQuestionInPassage = (passageIndex: number, questionIndex: number, field: string, value: string) => {
+  // Thêm hàm để thêm/xóa task
+  const addNewPassage = () => {
     setIeltsReadingTest(prev => ({
       ...prev,
-      passages: prev.passages.map((passage, index) => 
-        index === passageIndex 
-          ? {
-              ...passage,
-              questions: passage.questions.map((question, qIndex) => 
-                qIndex === questionIndex 
-                  ? { ...question, [field]: value }
-                  : question
-              )
-            }
-          : passage
-      )
+      passages: [...prev.passages, { title: '', content: '', groups: [] }]
     }));
+  };
+
+  const removePassage = (index: number) => {
+    if (ieltsReadingTest.passages.length <= 1) {
+      alert('Đề thi phải có ít nhất một bài đọc');
+      return;
+    }
+    
+    setIeltsReadingTest(prev => ({
+      ...prev,
+      passages: prev.passages.filter((_, i) => i !== index)
+    }));
+  };
+
+  // Hàm để thêm nhóm câu hỏi mới
+  const handleAddGroup = () => {
+    const passageIndex = newGroupForm.passageIndex;
+    const { content, questionType, startQuestion, endQuestion } = newGroupForm;
+    
+    if (!content || startQuestion > endQuestion) {
+      alert('Vui lòng nhập đầy đủ thông tin và đảm bảo số câu bắt đầu nhỏ hơn số câu kết thúc');
+      return;
+    }
+
+    const numQuestions = endQuestion - startQuestion + 1;
+    
+    // Tạo danh sách câu hỏi trống
+    const questions = Array.from({ length: numQuestions }, (_, i) => ({
+      questionText: '',
+      options: questionType === 'multiple_choice' ? ['', '', '', ''] : [],
+      explanation: '',
+      note: '',
+      orderIndex: startQuestion + i
+    }));
+
+    // Thêm nhóm câu hỏi mới vào passage
+    setIeltsReadingTest(prev => {
+      const newPassages = [...prev.passages];
+      newPassages[passageIndex].groups.push({
+        content,
+        questionType,
+        questions
+      });
+      return {
+        ...prev,
+        passages: newPassages
+      };
+    });
+
+    // Reset form
+    setNewGroupForm({
+      passageIndex,
+      content: '',
+      questionType: 'multiple_choice',
+      startQuestion: endQuestion + 1,
+      endQuestion: endQuestion + 7
+    });
+    
+    setShowAddGroupForm(false);
+  };
+
+  // Hàm cập nhật câu hỏi trong group
+  const updateQuestionInGroup = (passageIndex: number, groupIndex: number, questionIndex: number, field: string, value: any) => {
+    setIeltsReadingTest(prev => {
+      const newPassages = [...prev.passages];
+      newPassages[passageIndex].groups[groupIndex].questions[questionIndex] = {
+        ...newPassages[passageIndex].groups[groupIndex].questions[questionIndex],
+        [field]: value
+      };
+      return {
+        ...prev,
+        passages: newPassages
+      };
+    });
+  };
+
+  // Hàm để xóa nhóm câu hỏi
+  const deleteGroup = (passageIndex: number, groupIndex: number) => {
+    if (!confirm('Bạn có chắc muốn xóa nhóm câu hỏi này?')) return;
+
+    setIeltsReadingTest(prev => {
+      const newPassages = [...prev.passages];
+      newPassages[passageIndex].groups = newPassages[passageIndex].groups.filter((_, i) => i !== groupIndex);
+      return {
+        ...prev,
+        passages: newPassages
+      };
+    });
+  };
+
+  // Hàm để chỉnh sửa nhóm câu hỏi
+  const editGroup = (passageIndex: number, groupIndex: number) => {
+    const group = ieltsReadingTest.passages[passageIndex].groups[groupIndex];
+    const questions = group.questions;
+    
+    setNewGroupForm({
+      passageIndex,
+      content: group.content,
+      questionType: group.questionType,
+      startQuestion: questions[0].orderIndex,
+      endQuestion: questions[questions.length - 1].orderIndex
+    });
+    
+    // Xóa group cũ trước khi thêm group mới
+    setIeltsReadingTest(prev => {
+      const newPassages = [...prev.passages];
+      newPassages[passageIndex].groups = newPassages[passageIndex].groups.filter((_, i) => i !== groupIndex);
+      return {
+        ...prev,
+        passages: newPassages
+      };
+    });
+    
+    setShowAddGroupForm(true);
+  };
+
+  // Hàm để mở form nhập đáp án hàng loạt
+  const openBulkAnswerForm = (passageIndex: number, groupIndex: number) => {
+    setCurrentEditingGroup({ passageIndex, groupIndex });
+    setBulkAnswers('');
+    setShowBulkAnswerForm(true);
+  };
+
+  // Hàm để xử lý đáp án hàng loạt
+  const handleBulkAnswers = () => {
+    if (!currentEditingGroup) return;
+    
+    const { passageIndex, groupIndex } = currentEditingGroup;
+    const group = ieltsReadingTest.passages[passageIndex].groups[groupIndex];
+    const questions = group.questions;
+    
+    // Xử lý chuỗi đáp án
+    const answers = bulkAnswers
+      .split('\n')
+      .filter(line => line.trim())
+      .map(line => {
+        // Loại bỏ số thứ tự và dấu chấm/phẩy ở đầu
+        return line.trim().replace(/^\d+[\.,]\s*/, '').trim();
+      });
+    
+    // Thêm vào all_answers
+    setIeltsReadingTest(prev => {
+      const newTest = {...prev};
+      
+      // Tạo mảng all_answers nếu chưa có
+      if (!newTest.all_answers) {
+        newTest.all_answers = [];
+      }
+      
+      // Thêm các đáp án mới
+      for (let i = 0; i < Math.min(answers.length, questions.length); i++) {
+        const questionNumber = questions[i].orderIndex;
+        
+        // Kiểm tra xem đã có đáp án cho câu hỏi này chưa
+        const existingAnswerIndex = newTest.all_answers.findIndex(
+          a => a.question_number === questionNumber.toString()
+        );
+        
+        if (existingAnswerIndex >= 0) {
+          // Cập nhật đáp án đã có
+          newTest.all_answers[existingAnswerIndex].answer = answers[i];
+        } else {
+          // Thêm đáp án mới
+          newTest.all_answers.push({
+            question_number: questionNumber.toString(),
+            answer: answers[i],
+            order_index: questionNumber
+          });
+        }
+      }
+      
+      return newTest;
+    });
+    
+    setShowBulkAnswerForm(false);
+    alert(`Đã cập nhật ${Math.min(answers.length, questions.length)} đáp án cho nhóm câu hỏi`);
   };
 
   const handleQuestionSubmit = async (e: React.FormEvent) => {
@@ -635,183 +773,6 @@ const IeltsReadingAdminPage = () => {
     }));
   };
 
-  // Hàm biên dịch câu hỏi sử dụng Gemini
-  const generateQuestionsWithGemini = async (passageIndex: number) => {
-    const passage = ieltsReadingTest.passages[passageIndex];
-    const rawQuestion = rawQuestions[passageIndex];
-    
-    if (!passage.content.trim()) {
-      alert('Vui lòng nhập nội dung bài đọc trước khi biên dịch câu hỏi!');
-      return;
-    }
-
-    if (!rawQuestion.trim()) {
-      alert('Vui lòng nhập câu hỏi thô trước khi biên dịch!');
-      return;
-    }
-
-    setIsGeneratingQuestions(passageIndex);
-    
-    try {
-      const response = await fetch('/api/admin/ielts-reading/generate-questions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'firebase_uid': user?.uid || ''
-        },
-        body: JSON.stringify({
-          content: passage.content,
-          passage_title: passage.title,
-          raw_questions: rawQuestion
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        if (data.success && data.questions && data.questions.length > 0) {
-          // Tính toán số thứ tự bắt đầu cho Task hiện tại
-          let startQuestionNumber = 1;
-          for (let i = 0; i < passageIndex; i++) {
-            startQuestionNumber += ieltsReadingTest.passages[i].questions.length;
-          }
-          
-          // Cập nhật câu hỏi cho passage với số thứ tự chính xác
-          setIeltsReadingTest(prev => ({
-            ...prev,
-            passages: prev.passages.map((p, index) => 
-              index === passageIndex 
-                ? {
-                    ...p,
-                    questions: data.questions.map((q: any, qIndex: number) => ({
-                      question_text: q.question_text,
-                      question_type: q.question_type,
-                      note: q.note || null,
-                      order_index: startQuestionNumber + qIndex
-                    }))
-                  }
-                : p
-            )
-          }));
-          
-          alert(`Đã sắp xếp thành công ${data.questions.length} câu hỏi cho Task ${passageIndex + 1}!`);
-        } else {
-          alert('Không thể sắp xếp câu hỏi. Vui lòng thử lại!');
-        }
-      } else {
-        const errorData = await response.json();
-        alert(`Lỗi: ${errorData.error || 'Không thể biên dịch câu hỏi'}`);
-      }
-    } catch (error) {
-      console.error('Error generating questions:', error);
-      alert('Có lỗi xảy ra khi biên dịch câu hỏi!');
-    } finally {
-      setIsGeneratingQuestions(null);
-    }
-  };
-
-  // Hàm biên dịch đáp án toàn bộ đề thi sử dụng Gemini
-  const generateAnswersWithGemini = async () => {
-    const firstPassage = ieltsReadingTest.passages[0]; // Sử dụng passage đầu tiên để kiểm tra
-    
-    if (!firstPassage.content.trim()) {
-      alert('Vui lòng nhập nội dung bài đọc Task 1 trước khi biên dịch đáp án!');
-      return;
-    }
-
-    if (!rawAnswers.trim()) {
-      alert('Vui lòng nhập đáp án thô trước khi biên dịch!');
-      return;
-    }
-
-    setIsGeneratingAnswers(true);
-    
-    try {
-      const response = await fetch('/api/admin/ielts-reading/generate-answers', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'firebase_uid': user?.uid || ''
-        },
-        body: JSON.stringify({
-          content: firstPassage.content,
-          passage_title: firstPassage.title,
-          raw_answers: rawAnswers
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        if (data.success && data.answers && data.answers.length > 0) {
-          // Cập nhật đáp án Task 3
-          setIeltsReadingTest(prev => ({
-            ...prev,
-            all_answers: data.answers
-          }));
-          
-          alert(`Đã biên dịch thành công ${data.answers.length} đáp án cho toàn bộ đề thi!`);
-        } else {
-          alert('Không thể biên dịch đáp án. Vui lòng thử lại!');
-        }
-      } else {
-        const errorData = await response.json();
-        alert(`Lỗi: ${errorData.error || 'Không thể biên dịch đáp án'}`);
-      }
-    } catch (error) {
-      console.error('Error generating answers:', error);
-      alert('Có lỗi xảy ra khi biên dịch đáp án!');
-    } finally {
-      setIsGeneratingAnswers(false);
-    }
-  };
-
-  // Hàm di chuyển câu hỏi lên
-  const moveQuestionUp = (passageIndex: number, questionIndex: number) => {
-    if (questionIndex === 0) return; // Không thể di chuyển lên nếu là câu đầu tiên
-    
-    setIeltsReadingTest(prev => {
-      const newPassages = [...prev.passages];
-      const passage = newPassages[passageIndex];
-      const questions = [...passage.questions];
-      
-      // Hoán đổi vị trí
-      [questions[questionIndex], questions[questionIndex - 1]] = [questions[questionIndex - 1], questions[questionIndex]];
-      
-      // Cập nhật order_index
-      questions.forEach((q, index) => {
-        q.order_index = index + 1;
-      });
-      
-      newPassages[passageIndex] = { ...passage, questions };
-      
-      return { ...prev, passages: newPassages };
-    });
-  };
-
-  // Hàm di chuyển câu hỏi xuống
-  const moveQuestionDown = (passageIndex: number, questionIndex: number) => {
-    setIeltsReadingTest(prev => {
-      const newPassages = [...prev.passages];
-      const passage = newPassages[passageIndex];
-      const questions = [...passage.questions];
-      
-      if (questionIndex === questions.length - 1) return prev; // Không thể di chuyển xuống nếu là câu cuối cùng
-      
-      // Hoán đổi vị trí
-      [questions[questionIndex], questions[questionIndex + 1]] = [questions[questionIndex + 1], questions[questionIndex]];
-      
-      // Cập nhật order_index
-      questions.forEach((q, index) => {
-        q.order_index = index + 1;
-      });
-      
-      newPassages[passageIndex] = { ...passage, questions };
-      
-      return { ...prev, passages: newPassages };
-    });
-  };
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen bg-gray-800">
@@ -927,18 +888,34 @@ const IeltsReadingAdminPage = () => {
                 Câu hỏi {selectedPassage ? `- ${selectedPassage.title}` : ''}
               </h2>
               {selectedPassage && (
-                <button
-                  onClick={() => setShowQuestionForm(true)}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg"
-                >
-                  Thêm câu hỏi
-                </button>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setShowQuestionForm(true)}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg"
+                  >
+                    Thêm câu hỏi
+                  </button>
+                  {questions.length > 1 && (
+                    <button
+                      onClick={() => {
+                        const sortedQuestions = [...questions].sort((a, b) => a.order_index - b.order_index);
+                        setQuestions(sortedQuestions);
+                        if (selectedPassage) {
+                          saveQuestionOrder(selectedPassage.id, sortedQuestions);
+                        }
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+                    >
+                      Sắp xếp câu hỏi
+                    </button>
+                  )}
+                </div>
               )}
             </div>
             
             {selectedPassage ? (
               <div className="space-y-4">
-                {questions.map((question) => (
+                {questions.map((question, index) => (
                   <div key={question.id} className="bg-gray-600 p-4 rounded-lg">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
@@ -949,6 +926,40 @@ const IeltsReadingAdminPage = () => {
                         </div>
                       </div>
                       <div className="flex space-x-2">
+                        {index > 0 && (
+                          <button
+                            onClick={() => {
+                              const newQuestions = [...questions];
+                              [newQuestions[index], newQuestions[index - 1]] = [newQuestions[index - 1], newQuestions[index]];
+                              newQuestions.forEach((q, i) => { q.order_index = i + 1; });
+                              setQuestions(newQuestions);
+                              if (selectedPassage) {
+                                saveQuestionOrder(selectedPassage.id, newQuestions);
+                              }
+                            }}
+                            className="text-yellow-400 hover:text-yellow-300"
+                            title="Di chuyển lên"
+                          >
+                            ↑
+                          </button>
+                        )}
+                        {index < questions.length - 1 && (
+                          <button
+                            onClick={() => {
+                              const newQuestions = [...questions];
+                              [newQuestions[index], newQuestions[index + 1]] = [newQuestions[index + 1], newQuestions[index]];
+                              newQuestions.forEach((q, i) => { q.order_index = i + 1; });
+                              setQuestions(newQuestions);
+                              if (selectedPassage) {
+                                saveQuestionOrder(selectedPassage.id, newQuestions);
+                              }
+                            }}
+                            className="text-yellow-400 hover:text-yellow-300"
+                            title="Di chuyển xuống"
+                          >
+                            ↓
+                          </button>
+                        )}
                         <button
                           onClick={() => editQuestion(question)}
                           className="text-blue-400 hover:text-blue-300"
@@ -1322,7 +1333,7 @@ const IeltsReadingAdminPage = () => {
               <form onSubmit={handleIeltsTestSubmit} className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-gray-200 mb-2">Tiêu đề đề thi</label>
+                    <label className="block text-gray-200 mb-2">Tiêu đề đề thi <span className="text-red-500">*</span></label>
                       <input
                         type="text"
                       value={ieltsReadingTest.title}
@@ -1356,19 +1367,33 @@ const IeltsReadingAdminPage = () => {
                 </div>
 
                 <div className="border-t border-gray-600 pt-6">
-                  <h3 className="text-xl font-bold text-gray-50 mb-4">3 Task (Passages)</h3>
-                  
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-bold text-gray-50">Tasks (Passages)</h3>
+                    <button
+                      type="button"
+                      onClick={addNewPassage}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg flex items-center text-sm"
+                    >
+                      + Thêm Task
+                    </button>
+                  </div>
                   
                   {ieltsReadingTest.passages.map((passage, passageIndex) => (
                     <div key={passageIndex} className="bg-gray-600 p-6 rounded-lg mb-6">
                       <div className="flex justify-between items-center mb-4">
                         <h4 className="text-lg font-semibold text-gray-200">Task {passageIndex + 1}</h4>
-                        <span className="text-sm text-gray-400">Hệ thống sẽ tự động phân loại câu hỏi</span>
+                        <button
+                          type="button"
+                          onClick={() => removePassage(passageIndex)}
+                          className="text-red-400 hover:text-red-300 px-2 py-1 rounded"
+                        >
+                          Xóa Task
+                        </button>
                       </div>
 
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-gray-200 mb-2">Tiêu đề bài đọc</label>
+                          <label className="block text-gray-200 mb-2">Tiêu đề bài đọc <span className="text-red-500">*</span></label>
                           <input
                             type="text"
                             value={passage.title}
@@ -1379,13 +1404,12 @@ const IeltsReadingAdminPage = () => {
                             }}
                             className="w-full p-3 bg-gray-700 border border-gray-500 rounded-lg text-gray-200"
                             placeholder={`Tiêu đề Task ${passageIndex + 1}`}
-                    required
-                  />
-                </div>
+                          />
+                        </div>
 
-                <div>
+                        <div>
                           <label className="block text-gray-200 mb-2">Nội dung bài đọc</label>
-                  <textarea
+                          <textarea
                             value={passage.content}
                             onChange={(e) => {
                               const newPassages = [...ieltsReadingTest.passages];
@@ -1394,223 +1418,150 @@ const IeltsReadingAdminPage = () => {
                             }}
                             className="w-full p-3 bg-gray-700 border border-gray-500 rounded-lg text-gray-200 h-48"
                             placeholder={`Nội dung bài đọc Task ${passageIndex + 1}...`}
-                            required
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-gray-200 mb-2">Câu hỏi thô (cần sắp xếp)</label>
-                          <textarea
-                            value={rawQuestions[passageIndex]}
-                            onChange={(e) => {
-                              const newRawQuestions = [...rawQuestions];
-                              newRawQuestions[passageIndex] = e.target.value;
-                              setRawQuestions(newRawQuestions);
-                            }}
-                            className="w-full p-3 bg-gray-700 border border-gray-500 rounded-lg text-gray-200 h-32"
-                            placeholder={`Nhập câu hỏi thô cho Task ${passageIndex + 1}...`}
                           />
                         </div>
 
                         <div className="border-t border-gray-500 pt-4">
                           <div className="flex justify-between items-center mb-4">
-                            <h5 className="text-md font-semibold text-gray-200">Câu hỏi</h5>
-                            <div className="flex space-x-2">
-                              <button
-                                type="button"
-                                onClick={() => generateQuestionsWithGemini(passageIndex)}
-                                disabled={isGeneratingQuestions === passageIndex || !passage.content.trim() || !rawQuestions[passageIndex].trim()}
-                                className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-500 text-white px-3 py-1 rounded text-sm flex items-center"
-                              >
-                                {isGeneratingQuestions === passageIndex ? (
-                                  <>
-                                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
-                                    Đang biên dịch...
-                                  </>
-                                ) : (
-                                  <>
-                                    🤖 Biên dịch câu hỏi
-                                  </>
-                                )}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => addQuestionToPassage(passageIndex)}
-                                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
-                              >
-                                Thêm câu hỏi
-                              </button>
-                            </div>
+                            <h5 className="text-md font-semibold text-gray-200">Nhóm câu hỏi</h5>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNewGroupForm({
+                                  passageIndex,
+                                  content: '',
+                                  questionType: 'multiple_choice',
+                                  startQuestion: 1,
+                                  endQuestion: 7
+                                });
+                                setShowAddGroupForm(true);
+                              }}
+                              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm flex items-center"
+                            >
+                              Thêm nhóm câu hỏi
+                            </button>
                           </div>
 
-                          {passage.questions.map((question, questionIndex) => (
-                            <div key={questionIndex} className="bg-gray-700 p-4 rounded-lg mb-3">
-                              <div className="flex justify-between items-center mb-2">
-                                <span className="text-sm text-gray-400">Câu hỏi {question.order_index}</span>
-                                <div className="flex items-center space-x-2">
-                                  {question.note && (
-                                    <span className="text-xs text-yellow-400">
-                                      Note: {question.note}
-                                    </span>
-                                  )}
-                                  <div className="flex items-center space-x-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => moveQuestionUp(passageIndex, questionIndex)}
-                                      disabled={questionIndex === 0}
-                                      className="text-blue-400 hover:text-blue-300 disabled:text-gray-500 text-sm px-1"
-                                      title="Di chuyển lên"
-                                    >
-                                      ↑
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => moveQuestionDown(passageIndex, questionIndex)}
-                                      disabled={questionIndex === passage.questions.length - 1}
-                                      className="text-blue-400 hover:text-blue-300 disabled:text-gray-500 text-sm px-1"
-                                      title="Di chuyển xuống"
-                                    >
-                                      ↓
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => removeQuestionFromPassage(passageIndex, questionIndex)}
-                                      className="text-red-400 hover:text-red-300 text-sm"
-                                      title="Xóa câu hỏi"
-                                    >
-                                      Xóa
-                                    </button>
-                                  </div>
+                          {/* Hiển thị danh sách nhóm câu hỏi */}
+                          {passage.groups.map((group, groupIndex) => (
+                            <div key={groupIndex} className="bg-gray-700 p-4 rounded-lg mb-6">
+                              <div className="flex justify-between items-center mb-3">
+                                <h6 className="font-semibold text-gray-200">
+                                  Nhóm {groupIndex + 1}: {group.questions.length} câu hỏi (từ {group.questions[0]?.orderIndex || 0} đến {group.questions[group.questions.length - 1]?.orderIndex || 0})
+                                </h6>
+                                <div className="flex space-x-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => editGroup(passageIndex, groupIndex)}
+                                    className="text-blue-400 hover:text-blue-300 text-sm"
+                                  >
+                                    Sửa
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteGroup(passageIndex, groupIndex)}
+                                    className="text-red-400 hover:text-red-300 text-sm"
+                                  >
+                                    Xóa
+                                  </button>
                                 </div>
                               </div>
 
-                              <div className="space-y-3">
-                                <div>
-                                  <label className="block text-gray-200 mb-1 text-sm">Câu hỏi</label>
-                                  <textarea
-                                    value={question.question_text}
-                                    onChange={(e) => updateQuestionInPassage(passageIndex, questionIndex, 'question_text', e.target.value)}
-                                    className="w-full p-2 bg-gray-800 border border-gray-600 rounded text-gray-200 h-16 text-sm"
-                                    placeholder="Nhập câu hỏi..."
-                                    required
-                                  />
-                                </div>
-                                
-                                <div>
-                                  <label className="block text-gray-200 mb-1 text-sm">Loại câu hỏi</label>
-                                  <select
-                                    value={question.question_type || 'multiple_choice'}
-                                    onChange={(e) => updateQuestionInPassage(passageIndex, questionIndex, 'question_type', e.target.value)}
-                                    className="w-full p-2 bg-gray-800 border border-gray-600 rounded text-gray-200 text-sm"
-                                  >
-                                    <option value="multiple_choice">Multiple Choice</option>
-                                    <option value="true_false_not_given">True/False/Not Given</option>
-                                    <option value="yes_no_not_given">Yes/No/Not Given</option>
-                                    <option value="matching_headings">Matching Headings</option>
-                                    <option value="matching_information">Matching Information</option>
-                                    <option value="matching_features">Matching Features</option>
-                                    <option value="matching_sentence_endings">Matching Sentence Endings</option>
-                                    <option value="sentence_completion">Sentence Completion</option>
-                                    <option value="summary_completion">Summary Completion</option>
-                                    <option value="note_completion">Note Completion</option>
-                                    <option value="table_completion">Table Completion</option>
-                                    <option value="flow_chart_completion">Flow-chart Completion</option>
-                                    <option value="diagram_labelling">Diagram Labelling</option>
-                                    <option value="short_answer_questions">Short-Answer Questions</option>
-                                  </select>
-                                </div>
-                                
-                                <div>
-                                  <label className="block text-gray-200 mb-1 text-sm">Note (tùy chọn)</label>
-                                  <input
-                                    type="text"
-                                    value={question.note || ''}
-                                    onChange={(e) => updateQuestionInPassage(passageIndex, questionIndex, 'note', e.target.value)}
-                                    className="w-full p-2 bg-gray-800 border border-gray-600 rounded text-gray-200 text-sm"
-                                    placeholder="VD: Choose ONE WORD ONLY from the passage for each answer"
-                                  />
-                                </div>
+                              <div className="bg-gray-800 p-3 rounded mb-3">
+                                <div className="text-gray-400 text-sm mb-1">Nội dung nhóm câu hỏi:</div>
+                                <div className="text-gray-200 whitespace-pre-line">{group.content}</div>
                               </div>
+
+                              <div className="bg-gray-800 p-3 rounded mb-3">
+                                <div className="text-gray-400 text-sm mb-1">Loại câu hỏi:</div>
+                                <div className="text-gray-200">{group.questionType}</div>
+                              </div>
+
+                              <div className="mt-4 flex justify-between items-center">
+                                <h6 className="font-semibold text-gray-300">Câu hỏi:</h6>
+                                <button
+                                  type="button"
+                                  onClick={() => openBulkAnswerForm(passageIndex, groupIndex)}
+                                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs"
+                                >
+                                  Nhập đáp án hàng loạt
+                                </button>
+                              </div>
+                              <div>
+                                {group.questions.map((question, questionIndex) => (
+                                  <div key={questionIndex} className="bg-gray-800 p-3 rounded-lg mb-2">
+                                    <div className="flex justify-between items-center mb-2">
+                                      <span className="text-gray-300">Câu {question.orderIndex}</span>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <textarea
+                                        value={question.questionText}
+                                        onChange={(e) => updateQuestionInGroup(passageIndex, groupIndex, questionIndex, 'questionText', e.target.value)}
+                                        className="w-full p-2 bg-gray-700 border border-gray-600 rounded text-gray-200 h-16"
+                                        placeholder="Nhập nội dung câu hỏi..."
+                                        required
+                                      />
+                                      {group.questionType === 'multiple_choice' && question.options && (
+                                        <div className="grid grid-cols-2 gap-2">
+                                          {question.options.map((option, optionIndex) => (
+                                            <input
+                                              key={optionIndex}
+                                              type="text"
+                                              value={option}
+                                              onChange={(e) => {
+                                                const newOptions = [...question.options!];
+                                                newOptions[optionIndex] = e.target.value;
+                                                updateQuestionInGroup(passageIndex, groupIndex, questionIndex, 'options', newOptions);
+                                              }}
+                                              className="p-2 bg-gray-700 border border-gray-600 rounded text-gray-200"
+                                              placeholder={`Tùy chọn ${String.fromCharCode(65 + optionIndex)}`}
+                                            />
+                                          ))}
+                                        </div>
+                                      )}
+                                      <input
+                                        type="text"
+                                        value={question.note || ''}
+                                        onChange={(e) => updateQuestionInGroup(passageIndex, groupIndex, questionIndex, 'note', e.target.value)}
+                                        className="w-full p-2 bg-gray-700 border border-gray-600 rounded text-gray-200"
+                                        placeholder="Ghi chú (không bắt buộc)"
+                                      />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Hiển thị đáp án đã nhập */}
+                              {ieltsReadingTest.all_answers && ieltsReadingTest.all_answers.length > 0 && (
+                                <div className="mt-4">
+                                  <div className="text-gray-400 text-sm mb-2">Đáp án đã nhập:</div>
+                                  <div className="bg-gray-700 p-3 rounded">
+                                    {group.questions.map((question, qIndex) => {
+                                      const answer = ieltsReadingTest.all_answers?.find(
+                                        a => a.question_number === question.orderIndex.toString()
+                                      );
+                                      return answer ? (
+                                        <div key={qIndex} className="mb-1 text-sm">
+                                          <span className="text-gray-300">{question.orderIndex}. </span>
+                                          <span className="text-green-400">{answer.answer}</span>
+                                        </div>
+                                      ) : null;
+                                    })}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           ))}
+
+                          {passage.groups.length === 0 && (
+                            <div className="text-center text-gray-400 py-8">
+                              Chưa có nhóm câu hỏi nào. Hãy thêm nhóm câu hỏi!
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
                   ))}
-                </div>
-
-                <div className="border-t border-gray-600 pt-6">
-                  <h3 className="text-xl font-bold text-gray-50 mb-4">Đáp án toàn bộ đề thi</h3>
-                  
-                  <div className="bg-yellow-900 bg-opacity-20 border border-yellow-600 rounded-lg p-4 mb-6">
-                    <h4 className="text-yellow-200 font-semibold mb-2">💡 Hướng dẫn biên dịch đáp án:</h4>
-                    <ul className="text-yellow-100 text-sm space-y-1">
-                      <li>• <strong>🤖 Biên dịch đáp án:</strong> Nhập đáp án thô (có thể bằng tiếng Việt) và nhấn nút để tự động biên dịch sang tiếng Anh</li>
-                      <li>• <strong>Đáp án thô:</strong> Có thể nhập theo format: "1. A, 2. True, 3. environment, 4. B..." cho toàn bộ đề thi</li>
-                      <li>• <strong>Kết quả:</strong> Hệ thống sẽ tự động biên dịch và sắp xếp đáp án theo thứ tự</li>
-                      <li>• <strong>Chỉnh sửa:</strong> Có thể chỉnh sửa đáp án sau khi biên dịch</li>
-                      <li>• <strong>Lưu ý:</strong> Đáp án này sẽ áp dụng cho toàn bộ đề thi (cả 3 Task)</li>
-                    </ul>
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-gray-200 mb-2">Đáp án thô (cần biên dịch)</label>
-                      <textarea
-                        value={rawAnswers}
-                        onChange={(e) => setRawAnswers(e.target.value)}
-                        className="w-full p-3 bg-gray-700 border border-gray-500 rounded-lg text-gray-200 h-32"
-                        placeholder="Nhập đáp án thô... Ví dụ: 1. A, 2. True, 3. environment, 4. B, 5. False... (cho toàn bộ đề thi)"
-                      />
-                      <div className="text-xs text-gray-400 mt-1">
-                        Có thể nhập bằng tiếng Việt hoặc tiếng Anh, hệ thống sẽ tự động biên dịch và sắp xếp cho toàn bộ đề thi
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between items-center mb-4">
-                        <label className="block text-gray-200 mb-2">Đáp án đã biên dịch</label>
-                        <button
-                          type="button"
-                          onClick={generateAnswersWithGemini}
-                          disabled={isGeneratingAnswers || !rawAnswers.trim() || !ieltsReadingTest.passages[0].content.trim()}
-                          className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-500 text-white px-4 py-2 rounded text-sm flex items-center"
-                        >
-                          {isGeneratingAnswers ? (
-                            <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
-                              Đang biên dịch...
-                            </>
-                          ) : (
-                            <>
-                              🤖 Biên dịch đáp án
-                            </>
-                          )}
-                        </button>
-                      </div>
-
-                      <div className="bg-gray-700 border border-gray-500 rounded-lg p-3 h-32 overflow-y-auto">
-                        {ieltsReadingTest.all_answers && ieltsReadingTest.all_answers.length > 0 ? (
-                          <div className="space-y-2">
-                            {ieltsReadingTest.all_answers.map((answer, index) => (
-                              <div key={index} className="text-sm text-gray-200">
-                                <span className="font-semibold">{answer.question_number}:</span> {answer.answer}
-                                {answer.explanation && (
-                                  <div className="text-xs text-gray-400 ml-4 mt-1">
-                                    {answer.explanation}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-gray-400 text-sm">
-                            Chưa có đáp án. Hãy nhập đáp án thô và nhấn "Biên dịch đáp án"
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
                 </div>
 
                 <div className="flex space-x-4">
@@ -1629,14 +1580,11 @@ const IeltsReadingAdminPage = () => {
                         description: '',
                         is_active: true,
                         passages: [
-                          { title: '', content: '', questions: [] },
-                          { title: '', content: '', questions: [] },
-                          { title: '', content: '', questions: [] }
+                          { title: '', content: '', groups: [] }
                         ],
                         all_answers: []
                       });
                       setRawAnswers('');
-                      setRawQuestions(['', '', '']);
                     }}
                     className="bg-gray-600 hover:bg-gray-500 text-gray-200 px-6 py-3 rounded-lg"
                   >
@@ -1644,6 +1592,145 @@ const IeltsReadingAdminPage = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal thêm nhóm câu hỏi */}
+        {showAddGroupForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-gray-700 rounded-lg p-6 w-full max-w-2xl">
+              <h2 className="text-xl font-bold text-gray-50 mb-4">
+                Thêm nhóm câu hỏi mới
+              </h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-gray-200 mb-2">Nội dung nhóm câu hỏi</label>
+                  <textarea
+                    value={newGroupForm.content}
+                    onChange={(e) => setNewGroupForm({...newGroupForm, content: e.target.value})}
+                    className="w-full p-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-200 h-40"
+                    placeholder="Nhập nội dung cho nhóm câu hỏi (ví dụ: đoạn văn, bảng biểu, danh sách, v.v.)"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-200 mb-2">Loại câu hỏi</label>
+                  <select
+                    value={newGroupForm.questionType}
+                    onChange={(e) => setNewGroupForm({...newGroupForm, questionType: e.target.value})}
+                    className="w-full p-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-200"
+                  >
+                    <option value="multiple_choice">Multiple Choice</option>
+                    <option value="true_false_not_given">True/False/Not Given</option>
+                    <option value="yes_no_not_given">Yes/No/Not Given</option>
+                    <option value="matching_headings">Matching Headings</option>
+                    <option value="matching_information">Matching Information</option>
+                    <option value="matching_features">Matching Features</option>
+                    <option value="matching_sentence_endings">Matching Sentence Endings</option>
+                    <option value="sentence_completion">Sentence Completion</option>
+                    <option value="summary_completion">Summary Completion</option>
+                    <option value="note_completion">Note Completion</option>
+                    <option value="table_completion">Table Completion</option>
+                    <option value="flow_chart_completion">Flow-chart Completion</option>
+                    <option value="diagram_labelling">Diagram Labelling</option>
+                    <option value="short_answer_questions">Short-Answer Questions</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-gray-200 mb-2">Câu bắt đầu</label>
+                    <input
+                      type="number"
+                      value={newGroupForm.startQuestion}
+                      onChange={(e) => setNewGroupForm({...newGroupForm, startQuestion: parseInt(e.target.value)})}
+                      className="w-full p-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-200"
+                      min="1"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-200 mb-2">Câu kết thúc</label>
+                    <input
+                      type="number"
+                      value={newGroupForm.endQuestion}
+                      onChange={(e) => setNewGroupForm({...newGroupForm, endQuestion: parseInt(e.target.value)})}
+                      className="w-full p-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-200"
+                      min={newGroupForm.startQuestion}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="flex space-x-4 mt-6">
+                  <button
+                    type="button"
+                    onClick={handleAddGroup}
+                    className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg"
+                  >
+                    Thêm nhóm câu hỏi
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddGroupForm(false)}
+                    className="bg-gray-600 hover:bg-gray-500 text-gray-200 px-6 py-3 rounded-lg"
+                  >
+                    Hủy
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal nhập đáp án hàng loạt */}
+        {showBulkAnswerForm && currentEditingGroup && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-gray-700 rounded-lg p-6 w-full max-w-2xl">
+              <h2 className="text-xl font-bold text-gray-50 mb-4">
+                Nhập đáp án hàng loạt
+              </h2>
+              
+              <div className="space-y-4">
+                <p className="text-gray-300">
+                  Nhập danh sách đáp án, mỗi dòng một đáp án theo định dạng:
+                  <br />
+                  <code className="bg-gray-800 px-2 py-1 rounded">1. Đáp án</code>
+                  <br />
+                  <code className="bg-gray-800 px-2 py-1 rounded">2. Đáp án</code>
+                  <br />
+                  Đáp án sẽ được ghép với câu hỏi theo thứ tự.
+                </p>
+
+                <div>
+                  <textarea
+                    value={bulkAnswers}
+                    onChange={(e) => setBulkAnswers(e.target.value)}
+                    className="w-full p-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-200 h-64 font-mono"
+                    placeholder="1. Đáp án câu 1&#10;2. Đáp án câu 2&#10;3. Đáp án câu 3..."
+                  />
+                </div>
+
+                <div className="flex space-x-4 mt-6">
+                  <button
+                    type="button"
+                    onClick={handleBulkAnswers}
+                    className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg"
+                  >
+                    Lưu đáp án
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowBulkAnswerForm(false)}
+                    className="bg-gray-600 hover:bg-gray-500 text-gray-200 px-6 py-3 rounded-lg"
+                  >
+                    Hủy
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

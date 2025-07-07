@@ -5,25 +5,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { vietnameseText, lessonType, lessonLevel } = req.body;
-
-  if (!vietnameseText) {
-    return res.status(400).json({ error: 'Thiếu văn bản tiếng Việt' });
+  const { englishText } = req.body;
+  if (!englishText) {
+    return res.status(400).json({ error: 'Thiếu văn bản tiếng Anh' });
   }
 
   try {
-    // Tạo prompt cho Gemini (rút gọn)
-    const prompt = `Dịch sang tiếng Anh: "${vietnameseText}"
-
-Loại bài: ${lessonType || 'EMAILS'}
-Độ khó: ${lessonLevel || 'BEGINNER'}
-
-Yêu cầu: Dịch chính xác và tự nhiên, phù hợp với độ khó ${lessonLevel}. Chỉ trả về bản dịch tiếng Anh.`;
+    // Tạo prompt cho Gemini: Dịch từ tiếng Anh sang tiếng Việt
+    const prompt = `Dịch sang tiếng Việt: "${englishText}"
+Yêu cầu: Dịch tự nhiên, chính xác, chỉ trả về bản dịch tiếng Việt.`;
 
     console.log('📤 Gửi yêu cầu dịch tới Gemini API');
     console.log('🔑 API Key:', process.env.GEMINI_API_KEY ? 'Đã cấu hình' : 'Chưa cấu hình');
     
-    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent`, {
+    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -91,9 +86,9 @@ Yêu cầu: Dịch chính xác và tự nhiên, phù hợp với độ khó ${le
       
       // Fallback: thử dịch với prompt đơn giản hơn
       console.log('🔄 Thử lại với prompt đơn giản hơn...');
-      const simplePrompt = `Translate to English: "${vietnameseText}"`;
+      const simplePrompt = `Translate to Vietnamese: "${englishText}"`;
       
-      const fallbackRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent`, {
+      const fallbackRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -128,7 +123,7 @@ Yêu cầu: Dịch chính xác và tự nhiên, phù hợp với độ khó ${le
     return res.status(200).json({
       success: true,
       translatedText: cleanText,
-      originalText: vietnameseText
+      originalText: englishText
     });
 
   } catch (error) {
