@@ -16,6 +16,8 @@ interface Term {
   example?: string;
   notes?: string;
   part_of_speech?: string;
+  meanings?: string[];
+  vietnamese?: string;
 }
 
 const VocabListPage: React.FC = () => {
@@ -100,7 +102,7 @@ const VocabListPage: React.FC = () => {
     
     return matchesLevelFilter && 
            (term.vocab.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            term.meaning.toLowerCase().includes(searchTerm.toLowerCase()));
+            ((term.meanings?.[0] || term.vietnamese || '').toLowerCase().includes(searchTerm.toLowerCase())));
   });
 
   // Loại bỏ phân trang để hiển thị tất cả từ vựng
@@ -446,7 +448,7 @@ const VocabListPage: React.FC = () => {
                       <div className="text-sm font-medium text-gray-50">{term.vocab}</div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="text-sm text-gray-300">{term.meaning}</div>
+                      <div className="text-sm text-gray-300">{term.meanings?.[0] || term.vietnamese || ''}</div>
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
                       <div className="flex space-x-2">

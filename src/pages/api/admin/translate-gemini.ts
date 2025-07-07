@@ -11,9 +11,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Tạo prompt cho Gemini: Dịch từ tiếng Anh sang tiếng Việt
+    // Tạo prompt cho Gemini: Dịch từ tiếng Anh sang tiếng Việt và trả về loại từ
     const prompt = `Dịch sang tiếng Việt: "${englishText}"
-Yêu cầu: Dịch tự nhiên, chính xác, chỉ trả về bản dịch tiếng Việt.`;
+Yêu cầu:
+1. Dịch tự nhiên, chính xác.
+2. Xác định loại từ (part of speech) và trả về bằng tiếng Anh (e.g. noun, verb, adjective, adverb, phrasal verb, noun phrase, ...).
+3. Chỉ trả về kết quả dưới dạng JSON với 2 trường: vi (nghĩa tiếng Việt), pos (loại từ, tiếng Anh).
+Ví dụ: {"vi": "bằng tốt nghiệp", "pos": "noun"}`;
 
     console.log('📤 Gửi yêu cầu dịch tới Gemini API');
     console.log('🔑 API Key:', process.env.GEMINI_API_KEY ? 'Đã cấu hình' : 'Chưa cấu hình');
@@ -50,30 +54,30 @@ Yêu cầu: Dịch tự nhiên, chính xác, chỉ trả về bản dịch tiế
     console.log('📄 Raw response:', JSON.stringify(geminiData).substring(0, 500) + '...');
     
     let translatedText = '';
+    let partOfSpeech = '';
     
     try {
-      translatedText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      
-      // Fallback: thử các cấu trúc khác
-      if (!translatedText) {
-        translatedText = geminiData?.candidates?.[0]?.content?.text || '';
+      let rawText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      if (!rawText) rawText = geminiData?.candidates?.[0]?.content?.text || '';
+      if (!rawText) rawText = geminiData?.text || '';
+      if (!rawText) rawText = geminiData?.content || '';
+      // Thử parse JSON
+      try {
+        const json = JSON.parse(rawText);
+        translatedText = json.vi || '';
+        partOfSpeech = json.pos || '';
+      } catch {
+        // Nếu không phải JSON, fallback như cũ
+        translatedText = rawText;
       }
-      if (!translatedText) {
-        translatedText = geminiData?.text || '';
-      }
-      if (!translatedText) {
-        translatedText = geminiData?.content || '';
-      }
-      
       // Kiểm tra finishReason
       const finishReason = geminiData?.candidates?.[0]?.finishReason;
       console.log('🏁 Finish reason:', finishReason);
-      
       if (finishReason === 'MAX_TOKENS') {
         console.warn('⚠️ Response bị cắt do vượt quá giới hạn token');
       }
-      
       console.log('📝 Extracted text:', translatedText.substring(0, 200) + '...');
+      if (partOfSpeech) console.log('📝 Extracted part of speech:', partOfSpeech);
     } catch (parseError) {
       console.error('❌ Lỗi parse response:', parseError);
       console.error('❌ Raw response:', geminiData);
@@ -123,7 +127,8 @@ Yêu cầu: Dịch tự nhiên, chính xác, chỉ trả về bản dịch tiế
     return res.status(200).json({
       success: true,
       translatedText: cleanText,
-      originalText: englishText
+      originalText: englishText,
+      partOfSpeech: partOfSpeech
     });
 
   } catch (error) {

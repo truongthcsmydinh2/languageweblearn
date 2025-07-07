@@ -51,6 +51,10 @@ const HIGHLIGHT_COLORS = [
   '#ddd6fe', // tím nhạt
 ];
 
+const TOOLBAR_HEIGHT = 48; // px
+const TOOLBAR_WIDTH = 120; // px, ước lượng chiều rộng popup
+const TOOLBAR_MARGIN = 8; // px
+
 const IeltsReadingPage = () => {
   const router = useRouter();
   const { user } = useAuth();
@@ -101,6 +105,49 @@ const IeltsReadingPage = () => {
   const [translatePopupPos, setTranslatePopupPos] = useState<{x: number, y: number} | null>(null);
   const [draggingTranslate, setDraggingTranslate] = useState(false);
   const [dragOffset, setDragOffset] = useState<{x: number, y: number}>({x: 0, y: 0});
+
+  // State cho popup xóa highlight
+  const [showRemoveHighlight, setShowRemoveHighlight] = useState(false);
+  const [removeHighlightPos, setRemoveHighlightPos] = useState<{x: number, y: number} | null>(null);
+  const [highlightToRemove, setHighlightToRemove] = useState<number | null>(null); // index trong mảng highlightedRanges
+
+  // State cho thông báo lưu từ
+  const [saveTermStatus, setSaveTermStatus] = useState<'idle' | 'saving' | 'success' | 'error'>("idle");
+  const [saveTermMsg, setSaveTermMsg] = useState<string>("");
+
+  // State cho loại từ
+  const [partOfSpeech, setPartOfSpeech] = useState<string>("");
+
+  // State cho nghĩa tiếng Việt đã parse
+  const [viMeaning, setViMeaning] = useState<string>("");
+
+  // Helper: key lưu localStorage theo id bài đọc
+  const getLocalKey = (passageId: number | string | undefined) => passageId ? `ielts_reading_state_${passageId}` : '';
+
+  // Khôi phục trạng thái khi vào lại trang hoặc khi chọn bài đọc
+  useEffect(() => {
+    if (selectedPassage?.id) {
+      const saved = localStorage.getItem(getLocalKey(selectedPassage.id));
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.userAnswers) setUserAnswers(parsed.userAnswers);
+          if (parsed.highlightedRanges) setHighlightedRanges(parsed.highlightedRanges);
+        } catch {}
+      }
+    }
+  }, [selectedPassage?.id]);
+
+  // Tự động lưu mỗi khi userAnswers hoặc highlightedRanges thay đổi
+  useEffect(() => {
+    if (selectedPassage?.id) {
+      const data = JSON.stringify({
+        userAnswers,
+        highlightedRanges
+      });
+      localStorage.setItem(getLocalKey(selectedPassage.id), data);
+    }
+  }, [userAnswers, highlightedRanges, selectedPassage?.id]);
 
   useEffect(() => {
     if (!user) {
@@ -328,6 +375,10 @@ const IeltsReadingPage = () => {
     } catch (error) {
       console.error('Error submitting results:', error);
     }
+
+    if (selectedPassage?.id) {
+      localStorage.removeItem(getLocalKey(selectedPassage.id));
+    }
   };
 
   const formatTime = (seconds: number) => {
@@ -497,17 +548,23 @@ const IeltsReadingPage = () => {
     if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = 'none';
+      document.body.style.webkitUserSelect = 'none';
+    } else {
+      document.body.style.userSelect = '';
+      document.body.style.webkitUserSelect = '';
     }
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = '';
+      document.body.style.webkitUserSelect = '';
     };
   }, [isDragging]);
 
   // Lắng nghe selection trong panel bài đọc
   useEffect(() => {
     const handleSelection = () => {
-      if (!readingContentRef.current) return;
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed) {
         setShowToolbar(false);
@@ -515,16 +572,33 @@ const IeltsReadingPage = () => {
         return;
       }
       const range = selection.getRangeAt(0);
-      if (!readingContentRef.current.contains(range.commonAncestorContainer)) {
+      // Nếu selection nằm trong popup dịch hoặc popup màu thì không hiện toolbar
+      const translatePopup = document.querySelector('[data-translate-popup]');
+      const colorPickerPopup = document.querySelector('[data-color-picker-popup]');
+      if ((translatePopup && translatePopup.contains(range.commonAncestorContainer)) ||
+          (colorPickerPopup && colorPickerPopup.contains(range.commonAncestorContainer))) {
         setShowToolbar(false);
         setShowTranslatePopup(false);
         return;
       }
       const rect = range.getBoundingClientRect();
-      setToolbarPos({
-        x: rect.left + window.scrollX + rect.width / 2,
-        y: rect.top + window.scrollY - 40 // phía trên selection
-      });
+      // Tính toán vị trí popup: ưu tiên phía trên, nếu không đủ thì phía dưới, và lệch sang phải
+      let x = rect.right + window.scrollX + TOOLBAR_MARGIN; // lệch sang phải vùng bôi đen
+      let y = rect.top + window.scrollY - TOOLBAR_HEIGHT - TOOLBAR_MARGIN;
+      // Nếu phía trên không đủ chỗ, hiện phía dưới
+      if (y < window.scrollY) {
+        y = rect.bottom + window.scrollY + TOOLBAR_MARGIN;
+      }
+      // Nếu lệch phải vượt màn hình, dịch sang trái
+      if (x + TOOLBAR_WIDTH > window.scrollX + window.innerWidth) {
+        x = rect.left + window.scrollX - TOOLBAR_WIDTH - TOOLBAR_MARGIN;
+        if (x < window.scrollX) x = window.scrollX + TOOLBAR_MARGIN; // sát mép trái
+      }
+      // Nếu popup vượt mép trên, căn sát mép trên
+      if (y < window.scrollY) y = window.scrollY + TOOLBAR_MARGIN;
+      // Nếu popup vượt mép dưới, căn sát mép dưới
+      if (y + TOOLBAR_HEIGHT > window.scrollY + window.innerHeight) y = window.scrollY + window.innerHeight - TOOLBAR_HEIGHT - TOOLBAR_MARGIN;
+      setToolbarPos({ x, y });
       setSelectedText(selection.toString());
       setShowToolbar(true);
       setShowTranslatePopup(false);
@@ -533,11 +607,19 @@ const IeltsReadingPage = () => {
     document.addEventListener('keyup', handleSelection);
     // Ẩn toolbar khi click ra ngoài
     const handleClick = (e: MouseEvent) => {
-      if (!readingContentRef.current) return;
       // Nếu click vào popup dịch thì không ẩn
       const translatePopup = document.querySelector('[data-translate-popup]');
       if (translatePopup && translatePopup.contains(e.target as Node)) return;
-      if (!readingContentRef.current.contains(e.target as Node)) {
+      // Nếu click vào popup xóa highlight thì không ẩn
+      const removeHighlightPopup = document.querySelector('[data-remove-highlight-popup]');
+      if (removeHighlightPopup && removeHighlightPopup.contains(e.target as Node)) return;
+      // Nếu popup xóa highlight đang mở, click ngoài popup sẽ ẩn popup
+      if (showRemoveHighlight) {
+        setShowRemoveHighlight(false);
+        return;
+      }
+      // Nếu click ngoài readingContentRef thì ẩn các popup khác
+      if (readingContentRef.current && !readingContentRef.current.contains(e.target as Node)) {
         setShowToolbar(false);
         setShowTranslatePopup(false);
         setShowColorPicker(false);
@@ -556,6 +638,8 @@ const IeltsReadingPage = () => {
     if (!selectedText) return;
     setTranslateResult('Đang dịch...');
     setShowTranslatePopup(true);
+    setPartOfSpeech("");
+    setViMeaning("");
     try {
       const res = await fetch('/api/admin/translate-gemini', {
         method: 'POST',
@@ -564,18 +648,41 @@ const IeltsReadingPage = () => {
       });
       const data = await res.json();
       setTranslateResult(data.translatedText || 'Không nhận được bản dịch');
+      let vi = "";
+      let pos = "";
+      let raw = data.translatedText || "";
+      const jsonMatch = raw.match(/```json[\s\n]*([\s\S]+?)```/i);
+      let parsed = null;
+      if (jsonMatch) {
+        try {
+          parsed = JSON.parse(jsonMatch[1]);
+        } catch { parsed = null; }
+      } else if (raw.trim().startsWith('[') || raw.trim().startsWith('{')) {
+        try {
+          parsed = JSON.parse(raw);
+        } catch { parsed = null; }
+      }
+      if (Array.isArray(parsed)) {
+        // Ưu tiên phần tử có pos: 'sentence', nếu không có thì lấy phần tử đầu tiên
+        const sentenceObj = parsed.find(item => item.pos && item.pos.toLowerCase() === 'sentence');
+        vi = sentenceObj?.vi || parsed[0]?.vi || "";
+        pos = sentenceObj?.pos || parsed[0]?.pos || "";
+      } else if (parsed && typeof parsed === 'object') {
+        vi = parsed.vi || "";
+        pos = parsed.pos || "";
+      }
+      setViMeaning(vi || raw);
+      setPartOfSpeech(pos || data.partOfSpeech || "");
     } catch {
       setTranslateResult('Lỗi khi dịch');
+      setPartOfSpeech("");
+      setViMeaning("");
     }
   };
 
   // Highlight đoạn text đã chọn
   const handleHighlight = () => {
     if (!selectedText || !readingContentRef.current) return;
-    const content = readingContentRef.current.innerText;
-    const start = content.indexOf(selectedText);
-    if (start === -1) return;
-    const end = start + selectedText.length;
     setColorPickerPos({
       x: toolbarPos.x,
       y: toolbarPos.y + 36
@@ -592,11 +699,44 @@ const IeltsReadingPage = () => {
     const start = content.indexOf(selectedText);
     if (start === -1) return;
     const end = start + selectedText.length;
-    setHighlightedRanges(ranges => [...ranges, {start, end, color}]);
+    setHighlightedRanges(ranges => {
+      let newRanges: typeof ranges = [];
+      let overlapped = false;
+      for (const r of ranges) {
+        // Không giao
+        if (end <= r.start || start >= r.end) {
+          newRanges.push(r);
+        } else {
+          overlapped = true;
+          // Nếu có phần trước vùng mới
+          if (r.start < start) {
+            newRanges.push({ start: r.start, end: start, color: r.color });
+          }
+          // Nếu có phần sau vùng mới
+          if (r.end > end) {
+            newRanges.push({ start: end, end: r.end, color: r.color });
+          }
+          // Đoạn giao sẽ được highlight lại bằng màu mới (bỏ qua đoạn giao cũ)
+        }
+      }
+      // Thêm highlight mới
+      newRanges.push({ start, end, color });
+      // Sắp xếp lại theo start
+      newRanges.sort((a, b) => a.start - b.start);
+      return newRanges;
+    });
     setShowColorPicker(false);
     setShowToolbar(false);
     setShowTranslatePopup(false);
     window.getSelection()?.removeAllRanges();
+  };
+
+  // Hàm xóa highlight
+  const handleRemoveHighlight = () => {
+    if (highlightToRemove === null) return;
+    setHighlightedRanges(ranges => ranges.filter((_, idx) => idx !== highlightToRemove));
+    setShowRemoveHighlight(false);
+    setHighlightToRemove(null);
   };
 
   // Hàm render nội dung bài đọc với highlight
@@ -609,7 +749,29 @@ const IeltsReadingPage = () => {
     const sorted = [...highlightedRanges].sort((a, b) => a.start - b.start);
     sorted.forEach(({start, end, color}, idx) => {
       if (last < start) parts.push(content.slice(last, start));
-      parts.push(<mark key={idx} style={{background: color, color: '#222', padding: 0}}>{content.slice(start, end)}</mark>);
+      parts.push(
+        <mark
+          key={idx}
+          style={{background: color, color: '#222', padding: 0, cursor: 'pointer'}}
+          onClick={e => {
+            e.stopPropagation();
+            // Nếu không có selection (không bôi đen), mới hiển thị popup xóa highlight
+            const selection = window.getSelection();
+            if (!selection || selection.isCollapsed) {
+              const rect = (e.target as HTMLElement).getBoundingClientRect();
+              setRemoveHighlightPos({
+                x: rect.right + window.scrollX + 8,
+                y: rect.top + window.scrollY
+              });
+              setShowRemoveHighlight(true);
+              setHighlightToRemove(idx);
+            }
+            // Nếu đang bôi đen thì không làm gì, để toolbar xử lý
+          }}
+        >
+          {content.slice(start, end)}
+        </mark>
+      );
       last = end;
     });
     if (last < content.length) parts.push(content.slice(last));
@@ -618,16 +780,16 @@ const IeltsReadingPage = () => {
 
   // Khi showTranslatePopup chuyển từ false -> true, nếu chưa từng kéo thì đặt vị trí mặc định
   useEffect(() => {
-    if (showTranslatePopup && !translatePopupPos && readingContentRef.current) {
+    if (showTranslatePopup && !translatePopupPos) {
       setTranslatePopupPos({
-        x: toolbarPos.x - (readingContentRef.current.getBoundingClientRect().left || 0),
-        y: (toolbarPos.y - (readingContentRef.current.getBoundingClientRect().top || 0)) + 36
+        x: toolbarPos.x,
+        y: toolbarPos.y + 36
       });
     }
     if (!showTranslatePopup) {
       setTranslatePopupPos(null);
     }
-  }, [showTranslatePopup, toolbarPos, readingContentRef]);
+  }, [showTranslatePopup, toolbarPos]);
 
   // Xử lý kéo popup dịch
   useEffect(() => {
@@ -646,6 +808,56 @@ const IeltsReadingPage = () => {
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [draggingTranslate, dragOffset]);
+
+  // Reset trạng thái lưu từ khi mở popup dịch mới
+  useEffect(() => {
+    if (showTranslatePopup) {
+      setSaveTermStatus('idle');
+      setSaveTermMsg('');
+    }
+  }, [showTranslatePopup]);
+
+  // Hàm lưu từ/cụm từ
+  const handleSaveTerm = async () => {
+    setSaveTermStatus('saving');
+    setSaveTermMsg('');
+    // Luôn dùng partOfSpeech state
+    try {
+      const res = await fetch('/api/vocab', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(user?.uid ? { 'firebase_uid': user.uid } : {})
+        },
+        body: JSON.stringify({ vocab: selectedText, meaning: viMeaning, part_of_speech: partOfSpeech })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSaveTermStatus('success');
+        setSaveTermMsg('Đã lưu!');
+      } else {
+        setSaveTermStatus('error');
+        setSaveTermMsg(data.message || 'Lưu thất bại!');
+      }
+    } catch (e) {
+      setSaveTermStatus('error');
+      setSaveTermMsg('Lỗi khi lưu từ/cụm từ!');
+    }
+  };
+
+  // Thêm effect riêng cho popup xóa highlight
+  useEffect(() => {
+    if (!showRemoveHighlight) return;
+    const handleRemoveHighlightClick = (e: MouseEvent) => {
+      const removeHighlightPopup = document.querySelector('[data-remove-highlight-popup]');
+      if (removeHighlightPopup && removeHighlightPopup.contains(e.target as Node)) return;
+      setShowRemoveHighlight(false);
+    };
+    document.addEventListener('mousedown', handleRemoveHighlightClick);
+    return () => {
+      document.removeEventListener('mousedown', handleRemoveHighlightClick);
+    };
+  }, [showRemoveHighlight]);
 
   if (loading) {
     return (
@@ -749,98 +961,6 @@ const IeltsReadingPage = () => {
                     style={{ fontSize: `${readingFontSize}px`, position: 'relative' }}
                   >
                     {renderReadingContent()}
-                    {/* Floating toolbar */}
-                    {showToolbar && selectedText && (
-                      <div
-                        onMouseDown={e => e.stopPropagation()}
-                        style={{
-                          position: 'absolute',
-                          left: toolbarPos.x - (readingContentRef.current?.getBoundingClientRect().left || 0),
-                          top: toolbarPos.y - (readingContentRef.current?.getBoundingClientRect().top || 0),
-                          zIndex: 1000,
-                          background: '#222',
-                          borderRadius: 8,
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          padding: '10px 20px',
-                          gap: 16,
-                          minWidth: 80,
-                          minHeight: 44,
-                          cursor: 'pointer',
-                          userSelect: 'none',
-                        }}
-                      >
-                        <button onClick={() => { handleTranslate(); setShowToolbar(false); }} title="Dịch" className="p-2 hover:bg-gray-700 rounded flex items-center justify-center" style={{minWidth: 36, minHeight: 36}}>
-                          <TranslateIcon />
-                        </button>
-                        <button onClick={handleHighlight} title="Highlight" className="p-2 hover:bg-yellow-100 rounded flex items-center justify-center" style={{minWidth: 36, minHeight: 36}}>
-                          <HighlightIcon />
-                        </button>
-                      </div>
-                    )}
-                    {/* Popup bản dịch */}
-                    {showTranslatePopup && translatePopupPos && (
-                      <div
-                        data-translate-popup
-                        onMouseDown={e => {
-                          // Nếu bấm vào popup, bắt đầu drag
-                          setDraggingTranslate(true);
-                          setDragOffset({
-                            x: e.clientX - translatePopupPos.x,
-                            y: e.clientY - translatePopupPos.y
-                          });
-                          e.stopPropagation();
-                        }}
-                        onMouseUp={e => { setDraggingTranslate(false); e.stopPropagation(); }}
-                        style={{
-                          position: 'absolute',
-                          left: translatePopupPos.x,
-                          top: translatePopupPos.y,
-                          zIndex: 1001,
-                          background: '#fff',
-                          color: '#222',
-                          borderRadius: 8,
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                          padding: '8px 12px',
-                          minWidth: 180,
-                          maxWidth: 320,
-                          cursor: draggingTranslate ? 'grabbing' : 'grab',
-                          userSelect: 'none',
-                        }}
-                      >
-                        <div className="text-lg">{translateResult}</div>
-                      </div>
-                    )}
-                    {showColorPicker && (
-                      <div
-                        data-color-picker-popup
-                        onMouseDown={e => e.stopPropagation()}
-                        style={{
-                          position: 'absolute',
-                          left: colorPickerPos.x - (readingContentRef.current?.getBoundingClientRect().left || 0),
-                          top: colorPickerPos.y - (readingContentRef.current?.getBoundingClientRect().top || 0),
-                          zIndex: 1002,
-                          background: '#fff',
-                          borderRadius: 8,
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                          padding: '8px 12px',
-                          display: 'flex',
-                          gap: 8
-                        }}
-                      >
-                        {HIGHLIGHT_COLORS.map((color, idx) => (
-                          <button
-                            key={color}
-                            onClick={() => handlePickColor(color)}
-                            title={`Highlight màu ${idx+1}`}
-                            style={{
-                              width: 28, height: 28, borderRadius: '50%', border: '2px solid #eee', background: color, cursor: 'pointer', outline: 'none', boxShadow: '0 1px 2px rgba(0,0,0,0.07)'
-                            }}
-                          />
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -893,6 +1013,146 @@ const IeltsReadingPage = () => {
             </div>
           </div>
         </div>
+        {showTranslatePopup && translatePopupPos && (
+          <div
+            data-translate-popup
+            onMouseDown={e => {
+              setDraggingTranslate(true);
+              setDragOffset({
+                x: e.clientX - translatePopupPos.x,
+                y: e.clientY - translatePopupPos.y
+              });
+              e.stopPropagation();
+            }}
+            onMouseUp={e => { setDraggingTranslate(false); e.stopPropagation(); }}
+            onClick={e => e.stopPropagation()}
+            style={{
+              position: 'fixed',
+              left: translatePopupPos.x,
+              top: translatePopupPos.y,
+              zIndex: 1001,
+              background: '#fff',
+              color: '#222',
+              borderRadius: 8,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              padding: '8px 12px',
+              minWidth: 180,
+              maxWidth: 320,
+              cursor: draggingTranslate ? 'grabbing' : 'grab',
+              userSelect: 'none',
+            }}
+          >
+            <div className="text-lg mb-2">{viMeaning}</div>
+            <div style={{display: 'flex', gap: 8, marginTop: 8}}>
+              <button
+                onClick={handleSaveTerm}
+                disabled={saveTermStatus === 'saving'}
+                style={{background: '#f1f5f9', color: '#2563eb', border: 'none', borderRadius: 4, padding: '6px 14px', fontWeight: 600, cursor: 'pointer'}}
+              >
+                {saveTermStatus === 'saving' ? 'Đang lưu...' : 'Lưu'}
+              </button>
+              <button
+                onClick={() => window.open(`https://dictionary.cambridge.org/dictionary/english/${encodeURIComponent(selectedText)}`, '_blank')}
+                style={{background: '#f1f5f9', color: '#0e7490', border: 'none', borderRadius: 4, padding: '6px 14px', fontWeight: 600, cursor: 'pointer'}}
+              >
+                Tra Cambridge
+              </button>
+            </div>
+            {saveTermStatus !== 'idle' && saveTermMsg && (
+              <div style={{marginTop: 6, fontSize: 13, color: saveTermStatus === 'success' ? '#16a34a' : '#b91c1c'}}>{saveTermMsg}</div>
+            )}
+          </div>
+        )}
+        {showColorPicker && (
+          <div
+            data-color-picker-popup
+            onMouseDown={e => e.stopPropagation()}
+            style={{
+              position: 'fixed',
+              left: colorPickerPos.x,
+              top: colorPickerPos.y,
+              zIndex: 1002,
+              background: '#fff',
+              borderRadius: 8,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              padding: '8px 12px',
+              display: 'flex',
+              gap: 8
+            }}
+          >
+            {HIGHLIGHT_COLORS.map((color, idx) => (
+              <button
+                key={color}
+                onClick={() => handlePickColor(color)}
+                title={`Highlight màu ${idx+1}`}
+                style={{
+                  width: 28, height: 28, borderRadius: '50%', border: '2px solid #eee', background: color, cursor: 'pointer', outline: 'none', boxShadow: '0 1px 2px rgba(0,0,0,0.07)'
+                }}
+              />
+            ))}
+          </div>
+        )}
+        {showToolbar && selectedText && (
+          <div
+            onMouseDown={e => e.stopPropagation()}
+            style={{
+              position: 'fixed',
+              left: toolbarPos.x,
+              top: toolbarPos.y,
+              zIndex: 1000,
+              background: '#222',
+              borderRadius: 8,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              padding: '10px 20px',
+              gap: 16,
+              minWidth: 80,
+              minHeight: 44,
+              cursor: 'pointer',
+              userSelect: 'none',
+            }}
+          >
+            <button onClick={() => { handleTranslate(); setShowToolbar(false); }} title="Dịch" className="p-2 hover:bg-gray-700 rounded flex items-center justify-center" style={{minWidth: 36, minHeight: 36}}>
+              <TranslateIcon />
+            </button>
+            <button onClick={handleHighlight} title="Highlight" className="p-2 hover:bg-yellow-100 rounded flex items-center justify-center" style={{minWidth: 36, minHeight: 36}}>
+              <HighlightIcon />
+            </button>
+          </div>
+        )}
+        {showRemoveHighlight && removeHighlightPos && (
+          <div
+            data-remove-highlight-popup
+            style={{
+              position: 'fixed',
+              left: removeHighlightPos.x,
+              top: removeHighlightPos.y,
+              zIndex: 2000,
+              background: '#fff',
+              borderRadius: 8,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              padding: '6px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            }}
+            onMouseDown={e => e.stopPropagation()}
+          >
+            <button
+              onClick={handleRemoveHighlight}
+              style={{color: '#b91c1c', fontWeight: 600, background: '#fee2e2', border: 'none', borderRadius: 4, padding: '4px 10px', cursor: 'pointer'}}
+            >
+              Xóa highlight
+            </button>
+            <button
+              onClick={() => setShowRemoveHighlight(false)}
+              style={{color: '#222', background: '#eee', border: 'none', borderRadius: 4, padding: '4px 10px', cursor: 'pointer'}}
+            >
+              Đóng
+            </button>
+          </div>
+        )}
       </>
     );
   }
