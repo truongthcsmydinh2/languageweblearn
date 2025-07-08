@@ -108,31 +108,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return normalizedTerm;
     });
     
-    // Lọc từ mới đúng theo mode
-    let newTerms: Term[] = [];
-    if (mode === 'en_to_vi') {
-      newTerms = normalizedTerms.filter(term => term.level_en === 0);
-    } else if (mode === 'vi_to_en') {
-      newTerms = normalizedTerms.filter(term => term.level_vi === 0);
-    } else {
-      newTerms = normalizedTerms.filter(term => term.level_en === 0 || term.level_vi === 0);
-    }
-    
-    // Sắp xếp các từ mới theo thời gian thêm vào (mới nhất lên đầu)
-    const sortedNewTerms = [...newTerms].sort((a, b) => b.time_added - a.time_added);
-    
-    if (sortedNewTerms.length === 0) {
-      return res.status(200).json({ 
-        terms: [],
-        message: "No vocabulary terms due for review"
-      });
-    }
-    
+    // Trả về toàn bộ từ vựng của user (không lọc theo ngày, không lọc theo level)
     return res.status(200).json({ 
-      terms: sortedNewTerms,
-      totalTerms: sortedNewTerms.length,
-      newTerms: sortedNewTerms.length,
-      reviewTerms: 0 // Không còn lấy các từ cần ôn tập nữa
+      terms: normalizedTerms,
+      totalTerms: normalizedTerms.length
     });
   } catch (error) {
     console.error('Error fetching learning terms:', error);

@@ -226,7 +226,7 @@ const VocabListPage: React.FC = () => {
       statusClass = 'text-green-600';
     } else {
       statusText = 'Sắp tới';
-      statusClass = 'text-gray-600';
+      statusClass = 'text-white';
     }
     
     return (
@@ -415,8 +415,11 @@ const VocabListPage: React.FC = () => {
                 <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">
                   Cấp độ (EN/VI)
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden lg:table-cell">
-                  Lần ôn tới
+                <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider hidden lg:table-cell">
+                  <div className="flex flex-col items-center">
+                    <span>Lần ôn tới EN</span>
+                    <span>Lần ôn tới VI</span>
+                  </div>
                 </th>
                 <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden lg:table-cell">
                   Từ loại
@@ -445,10 +448,10 @@ const VocabListPage: React.FC = () => {
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <div className="text-sm font-medium text-gray-50">{term.vocab}</div>
+                      <div className="text-lg font-semibold text-gray-50">{term.vocab}</div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="text-sm text-gray-300">{term.meanings?.[0] || term.vietnamese || ''}</div>
+                      <div className="text-lg font-semibold text-gray-300">{term.meanings?.[0] || term.vietnamese || ''}</div> 
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
                       <div className="flex space-x-2">
@@ -456,8 +459,8 @@ const VocabListPage: React.FC = () => {
                         {renderLevelBadge(term.level_vi)}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-400 hidden lg:table-cell">
-                      <div className="flex flex-col">
+                    <td className="px-4 py-3 text-lg text-gray-400 hidden lg:table-cell text-center align-middle">
+                      <div className="flex flex-col items-center">
                         <span>{renderReviewTime(term.review_time_en)}</span>
                         <span>{renderReviewTime(term.review_time_vi)}</span>
                       </div>

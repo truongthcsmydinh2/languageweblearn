@@ -79,10 +79,8 @@ export const VocabProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
         
         const data = await response.json();
-        console.log('Dữ liệu từ API:', data);
         setVocabSets(data);
       } catch (err) {
-        console.error('API error, using fallback data:', err);
         
         // Dữ liệu mẫu với cấu trúc đúng
         setVocabSets({
@@ -92,13 +90,12 @@ export const VocabProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             "description": "This is a fallback vocabulary set",
             "language": "en",
             "createdAt": Date.now(),
-            "terms": {} // Đảm bảo có thuộc tính terms dù rỗng
+            "terms": [] // Đảm bảo có thuộc tính terms dù rỗng
           }
         });
       }
     } catch (err) {
       setError(`Failed to fetch vocab sets: ${err}`);
-      console.error('Error fetching vocab sets:', err);
     } finally {
       setLoading(false);
     }
@@ -136,7 +133,6 @@ export const VocabProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       return id;
     } catch (err: any) {
       setError(err.message);
-      console.error('Error adding vocab set:', err);
       return null;
     }
   };
@@ -168,7 +164,6 @@ export const VocabProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       return true;
     } catch (err: any) {
       setError(err.message);
-      console.error('Error updating vocab set:', err);
       return false;
     }
   };
@@ -197,7 +192,6 @@ export const VocabProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       return true;
     } catch (err: any) {
       setError(err.message);
-      console.error('Error deleting vocab set:', err);
       return false;
     }
   };
@@ -247,7 +241,6 @@ export const VocabProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       return id;
     } catch (err: any) {
       setError(err.message);
-      console.error('Error adding term:', err);
       return null;
     }
   };
@@ -297,7 +290,6 @@ export const VocabProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       return true;
     } catch (err: any) {
       setError(err.message);
-      console.error('Error updating term:', err);
       return false;
     }
   };
@@ -331,7 +323,6 @@ export const VocabProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       return true;
     } catch (err: any) {
       setError(err.message);
-      console.error('Error deleting term:', err);
       return false;
     }
   };
@@ -349,7 +340,6 @@ export const VocabProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       
       return data.success;
     } catch (error) {
-      console.error('Error checking database connection:', error);
       setDbStatus({
         mysqlConnected: false,
         lastChecked: Date.now()
@@ -372,7 +362,6 @@ export const VocabProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           photoURL: user.photoURL
         })
       }).catch(err => {
-        console.error('Error saving user (continuing anyway):', err);
       });
       
       // Lấy danh sách bộ từ vựng
