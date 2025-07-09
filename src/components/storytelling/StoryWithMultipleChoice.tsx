@@ -232,7 +232,7 @@ export default function StoryWithMultipleChoice({ story, terms, onComplete }: Pr
 
   const getWordStyle = (term: Term) => {
     const answer = answers[term.id.toString()];
-    if (!answer) return 'bg-yellow-100 cursor-pointer hover:bg-yellow-200';
+    if (!answer) return 'bg-yellow-100 cursor-pointer hover:bg-yellow-200 text-gray-900';
     if (answer.isCorrect) return 'bg-green-100 text-green-800';
     return 'bg-red-100 text-red-800 cursor-pointer hover:bg-red-200';
   };
@@ -310,41 +310,38 @@ export default function StoryWithMultipleChoice({ story, terms, onComplete }: Pr
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="max-w-4xl mx-auto p-6 bg-gray-900 rounded-2xl shadow-xl border border-gray-700">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Chọn nghĩa tiếng Việt</h2>
-        <p className="text-gray-600">
+        <h2 className="text-2xl font-bold text-primary-200 mb-2">Chọn nghĩa tiếng Việt</h2>
+        <p className="text-primary-200/80">
           Click vào từ tiếng Anh và chọn nghĩa tiếng Việt phù hợp
         </p>
         <div className="mt-4 flex items-center gap-4">
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-primary-200/80">
             Đã hoàn thành: {completedCount}/{effectiveTerms.length} từ
           </div>
           {completedCount === effectiveTerms.length && (
             <button
               onClick={onComplete}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-4 py-2 bg-gradient-to-r from-primary-200 to-secondary-200 text-gray-900 font-bold rounded-lg shadow-lg hover:from-primary-300 hover:to-secondary-300 transition-all"
             >
               Tiếp tục
             </button>
           )}
         </div>
       </div>
-
-      <div className="bg-white rounded-xl shadow-lg p-6 relative">
-        <div className="prose max-w-none text-gray-800 leading-relaxed">
+      <div className="bg-gray-800 rounded-xl shadow-lg p-6 relative border border-gray-700">
+        <div className="prose max-w-none text-primary-200 leading-relaxed">
           {renderStory()}
         </div>
-
         <AnimatePresence>
           {selectedWord && (
             <>
               {/* Overlay để bắt sự kiện click ra ngoài */}
               <div 
-                className="fixed inset-0 bg-black bg-opacity-10 z-40"
+                className="fixed inset-0 bg-black bg-opacity-20 z-40"
                 onClick={handleClosePopup}
               />
-              
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -355,9 +352,9 @@ export default function StoryWithMultipleChoice({ story, terms, onComplete }: Pr
                   top: Math.min(selectedWord.position.y, window.innerHeight - 230)
                 }}
               >
-                <div className="bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden w-64 max-h-[calc(100vh-2rem)]">
-                  <div className="p-4 bg-gray-50 border-b border-gray-200">
-                    <h3 className="font-medium text-gray-800">
+                <div className="bg-gray-900 rounded-lg shadow-xl border border-gray-700 overflow-hidden w-64 max-h-[calc(100vh-2rem)]">
+                  <div className="p-4 bg-gray-800 border-b border-gray-700">
+                    <h3 className="font-medium text-primary-200">
                       Chọn nghĩa tiếng Việt cho từ "{selectedWord.word}"
                     </h3>
                   </div>
@@ -366,7 +363,7 @@ export default function StoryWithMultipleChoice({ story, terms, onComplete }: Pr
                       <button
                         key={index}
                         onClick={() => handleOptionClick(option)}
-                        className="w-full p-2 text-left hover:bg-gray-50 rounded transition-colors duration-200 mb-2 border border-gray-200 shadow-sm"
+                        className="w-full p-2 text-left hover:bg-primary-200/10 rounded transition-colors duration-200 mb-2 border border-primary-200 shadow-sm text-primary-200 font-semibold"
                       >
                         {option}
                       </button>

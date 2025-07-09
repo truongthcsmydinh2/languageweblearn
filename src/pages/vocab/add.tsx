@@ -230,8 +230,8 @@ const AddVocabPage = () => {
         level_en: 0,
         level_vi: 0,
         timeAdded: Date.now(),
-        review_time_en: Date.now(),
-        review_time_vi: Date.now(),
+        review_time_en: new Date().toISOString().slice(0, 10), // Set to current date
+        review_time_vi: new Date().toISOString().slice(0, 10), // Set to current date
         part_of_speech: selectedPartOfSpeech
       };
 
@@ -339,8 +339,8 @@ const AddVocabPage = () => {
             level_en: 0,
             level_vi: 0,
             timeAdded: Date.now(),
-            review_time_en: Date.now(),
-            review_time_vi: Date.now(),
+            review_time_en: new Date().toISOString().slice(0, 10), // Set to current date
+            review_time_vi: new Date().toISOString().slice(0, 10), // Set to current date
             part_of_speech: includeBulkPartOfSpeech ? part_of_speech?.trim() : undefined
           };
         })

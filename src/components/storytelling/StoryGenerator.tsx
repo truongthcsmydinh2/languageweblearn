@@ -7,6 +7,7 @@ interface Term {
   vocab: string;
   meaning: string;
   part_of_speech: string;
+  level: number;
 }
 
 interface StoryTerm {
@@ -39,6 +40,21 @@ const partOfSpeechColors: Record<string, string> = {
   'default': 'bg-gray-50 text-gray-700 border-gray-100 hover:bg-gray-100'
 };
 
+const LEVELS = [
+  { label: 'Tất cả', value: 'all' },
+  { label: 'Mới (0)', value: 0 },
+  { label: 'Cấp 1', value: 1 },
+  { label: 'Cấp 2', value: 2 },
+  { label: 'Cấp 3', value: 3 },
+  { label: 'Cấp 4', value: 4 },
+  { label: 'Cấp 5', value: 5 },
+  { label: 'Cấp 6', value: 6 },
+  { label: 'Cấp 7', value: 7 },
+  { label: 'Cấp 8', value: 8 },
+  { label: 'Cấp 9', value: 9 },
+  { label: 'Cấp 10', value: 10 },
+];
+
 export default function StoryGenerator({ onStoryGenerated }: Props) {
   const { user } = useAuth();
   const [terms, setTerms] = useState<Term[]>([]);
@@ -50,6 +66,7 @@ export default function StoryGenerator({ onStoryGenerated }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'vocab' | 'part_of_speech' | 'time_added'>('vocab');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [selectedLevel, setSelectedLevel] = useState<'all' | number>('all');
 
   // Lấy danh sách từ vựng của người dùng
   useEffect(() => {
@@ -110,20 +127,21 @@ export default function StoryGenerator({ onStoryGenerated }: Props) {
     });
   };
 
-  // Lọc và sắp xếp từ vựng
+  // Lọc và sắp xếp từ vựng theo search, sort, level
   const filteredAndSortedTerms = terms
-    .filter(term => 
-      term.vocab.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      term.meaning.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      term.part_of_speech.toLowerCase().includes(searchQuery.toLowerCase())
+    .filter(term =>
+      (term.vocab || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (term.meaning || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (term.part_of_speech || '').toLowerCase().includes(searchQuery.toLowerCase())
     )
+    .filter(term => selectedLevel === 'all' ? true : term.level === selectedLevel)
     .sort((a, b) => {
       const order = sortOrder === 'asc' ? 1 : -1;
       switch (sortBy) {
         case 'vocab':
-          return a.vocab.localeCompare(b.vocab) * order;
+          return (a.vocab || '').localeCompare(b.vocab || '') * order;
         case 'part_of_speech':
-          return a.part_of_speech.localeCompare(b.part_of_speech) * order;
+          return (a.part_of_speech || '').localeCompare(b.part_of_speech || '') * order;
         case 'time_added':
           return (a.id - b.id) * order;
         default:
@@ -131,22 +149,34 @@ export default function StoryGenerator({ onStoryGenerated }: Props) {
       }
     });
 
+  // Khi đổi level thì reset chọn từ
+  useEffect(() => {
+    setSelectedTerms([]);
+  }, [selectedLevel]);
+
+  // Khi tick chọn từ thì cập nhật lại số lượng từ chọn
+  useEffect(() => {
+    if (!isRandomMode) {
+      setTermCount(selectedTerms.length > 0 ? selectedTerms.length : filteredAndSortedTerms.length);
+    }
+  }, [selectedTerms, filteredAndSortedTerms.length, isRandomMode]);
+
   return (
-    <div className="max-w-4xl mx-auto p-8 bg-white rounded-2xl shadow-xl border border-gray-100">
+    <div className="max-w-4xl mx-auto p-8 bg-gray-900 rounded-2xl shadow-xl border border-gray-700">
       <div className="space-y-8">
         <div className="text-center">
-          <h2 className="text-3xl font-bold text-gray-800 mb-3">Tạo câu chuyện chêm</h2>
-          <p className="text-gray-600 text-lg">Chọn cách tạo câu chuyện phù hợp với bạn</p>
+          <h2 className="text-3xl font-bold text-primary-200 mb-3">Tạo câu chuyện chêm</h2>
+          <p className="text-primary-200/80 text-lg">Chọn cách tạo câu chuyện phù hợp với bạn</p>
         </div>
         
         {/* Toggle Switch */}
-        <div className="flex items-center justify-center bg-gray-100/80 p-1 rounded-full w-fit mx-auto shadow-inner">
+        <div className="flex items-center justify-center bg-gray-800/80 p-1 rounded-full w-fit mx-auto shadow-inner">
           <button
             onClick={() => setIsRandomMode(true)}
             className={`relative px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ease-in-out ${
               isRandomMode 
-                ? 'bg-white text-blue-600 shadow-sm scale-[0.98]' 
-                : 'text-gray-500 hover:bg-gray-50/50'
+                ? 'bg-primary-200 text-gray-900 shadow-sm scale-[0.98]' 
+                : 'text-primary-200 hover:bg-primary-200/10'
             }`}
             style={{
               transformOrigin: 'center',
@@ -158,8 +188,8 @@ export default function StoryGenerator({ onStoryGenerated }: Props) {
             onClick={() => setIsRandomMode(false)}
             className={`relative px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ease-in-out ${
               !isRandomMode 
-                ? 'bg-white text-blue-600 shadow-sm scale-[0.98]' 
-                : 'text-gray-500 hover:bg-gray-50/50'
+                ? 'bg-primary-200 text-gray-900 shadow-sm scale-[0.98]' 
+                : 'text-primary-200 hover:bg-primary-200/10'
             }`}
             style={{
               transformOrigin: 'center',
@@ -175,10 +205,10 @@ export default function StoryGenerator({ onStoryGenerated }: Props) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="bg-gray-50 p-6 rounded-lg"
+              className="bg-gray-800 p-6 rounded-lg"
             >
               <div className="max-w-xs mx-auto">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-primary-200 mb-2">
                   Số lượng từ ngẫu nhiên
                 </label>
                 <div className="relative">
@@ -188,10 +218,10 @@ export default function StoryGenerator({ onStoryGenerated }: Props) {
                     max="20"
                     value={termCount}
                     onChange={(e) => setTermCount(Number(e.target.value))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border border-primary-200 rounded-lg focus:ring-2 focus:ring-secondary-200 focus:border-transparent bg-gray-900 text-primary-200"
                   />
                   <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                    <span className="text-gray-500">từ</span>
+                    <span className="text-primary-200">từ</span>
                   </div>
                 </div>
               </div>
@@ -210,10 +240,10 @@ export default function StoryGenerator({ onStoryGenerated }: Props) {
                   placeholder="Tìm kiếm từ vựng..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-3 pl-10 border border-primary-200 rounded-lg focus:ring-2 focus:ring-secondary-200 focus:border-transparent bg-gray-900 text-primary-200"
                 />
                 <div className="absolute inset-y-0 left-0 flex items-center pl-3">
-                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="h-5 w-5 text-primary-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                 </div>
@@ -224,7 +254,7 @@ export default function StoryGenerator({ onStoryGenerated }: Props) {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="flex-1 px-4 py-3 border border-primary-200 rounded-lg focus:ring-2 focus:ring-secondary-200 focus:border-transparent bg-gray-900 text-primary-200"
                 >
                   <option value="vocab">Sắp xếp theo từ</option>
                   <option value="part_of_speech">Sắp xếp theo loại từ</option>
@@ -232,31 +262,82 @@ export default function StoryGenerator({ onStoryGenerated }: Props) {
                 </select>
                 <button
                   onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-                  className="w-12 h-12 flex items-center justify-center border border-gray-300 rounded-full hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  className="w-12 h-12 flex items-center justify-center border border-primary-200 rounded-full hover:bg-primary-200 focus:outline-none focus:ring-2 focus:ring-secondary-200 focus:border-transparent transition-all duration-200"
                 >
                   {sortOrder === 'asc' ? '↑' : '↓'}
                 </button>
               </div>
 
               {/* Danh sách từ vựng */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {filteredAndSortedTerms.map(term => (
-                  <motion.button
-                    key={term.id}
-                    onClick={() => toggleTermSelection(term.id)}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className={`p-4 text-left rounded-2xl border transition-all duration-200 hover:shadow-md ${
-                      selectedTerms.includes(term.id)
-                        ? 'bg-blue-100 border-blue-500 shadow-md'
-                        : partOfSpeechColors[term.part_of_speech.toLowerCase()] || partOfSpeechColors.default
-                    }`}
+              <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-primary-200 mb-2 font-medium">Chọn cấp độ từ vựng</label>
+                  <select
+                    className="w-full px-4 py-3 rounded-xl bg-gray-900 text-primary-200 border-2 border-primary-200 focus:outline-none focus:border-secondary-200 text-lg font-bold"
+                    value={selectedLevel}
+                    onChange={e => setSelectedLevel(e.target.value === 'all' ? 'all' : Number(e.target.value))}
                   >
-                    <div className="font-medium mb-1">{term.vocab}</div>
-                    <div className="text-sm text-gray-600 mb-1">{term.meaning}</div>
-                    <div className="text-xs font-medium opacity-75">{term.part_of_speech}</div>
-                  </motion.button>
-                ))}
+                    {LEVELS.map(l => (
+                      <option key={l.value} value={l.value}>{l.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-primary-200 mb-2 font-medium">Số lượng từ đã chọn</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={selectedTerms.length > 0 ? selectedTerms.length : filteredAndSortedTerms.length}
+                    value={termCount}
+                    readOnly
+                    className="w-full px-4 py-3 rounded-xl bg-gray-900 text-primary-200 border-2 border-primary-200 focus:outline-none focus:border-secondary-200 text-lg font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="mb-6 max-h-64 overflow-y-auto border border-gray-700 rounded-xl bg-gray-900">
+                <table className="min-w-full text-sm text-primary-200">
+                  <thead>
+                    <tr className="bg-gray-800">
+                      <th className="p-2 text-left font-semibold"><input type="checkbox" checked={selectedTerms.length === filteredAndSortedTerms.length && filteredAndSortedTerms.length > 0} onChange={e => setSelectedTerms(e.target.checked ? filteredAndSortedTerms.map(t => t.id) : [])} /></th>
+                      <th className="p-2 text-left font-semibold">Từ vựng</th>
+                      <th className="p-2 text-left font-semibold">Nghĩa</th>
+                      <th className="p-2 text-left font-semibold">Loại từ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredAndSortedTerms.length === 0 ? (
+                      <tr><td colSpan={4} className="text-center text-primary-200/60 py-4">Không có từ vựng nào phù hợp.</td></tr>
+                    ) : filteredAndSortedTerms.map(term => {
+                      const isSelected = selectedTerms.includes(term.id);
+                      return (
+                        <tr
+                          key={term.id}
+                          className={isSelected ? 'bg-primary-200/10 cursor-pointer' : 'cursor-pointer hover:bg-primary-200/5'}
+                          onClick={e => {
+                            if ((e.target as HTMLElement).tagName.toLowerCase() === 'input') return;
+                            if (isSelected) setSelectedTerms(ids => ids.filter(id => id !== term.id));
+                            else setSelectedTerms(ids => [...ids, term.id]);
+                          }}
+                        >
+                          <td className="p-2" onClick={e => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={e => {
+                                if (e.target.checked) setSelectedTerms(ids => [...ids, term.id]);
+                                else setSelectedTerms(ids => ids.filter(id => id !== term.id));
+                              }}
+                            />
+                          </td>
+                          <td className="p-2 font-bold">{term.vocab}</td>
+                          <td className="p-2">{term.meaning || <span className="italic text-primary-200/60">(Chưa có nghĩa)</span>}</td>
+                          <td className="p-2">{term.part_of_speech}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </motion.div>
           )}

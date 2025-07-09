@@ -154,18 +154,19 @@ export default async function handler(
            vocab, meanings, example_sentence, notes, 
            level_en, level_vi, review_time_en, review_time_vi, 
            last_review_en, last_review_vi,
-           firebase_uid, part_of_speech, created_at, updated_at
+           firebase_uid, part_of_speech, created_at, updated_at,
+           status_learning_en, status_learning_vi
          ) 
-         VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+         VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NULL, NULL)`,
         [
           vocab,
           JSON.stringify([meaning]),
           example || null,
           notes || null,
-          now, // review_time_en - thời gian review tiếp theo
-          now, // review_time_vi - thời gian review tiếp theo
-          now, // last_review_en - thời gian review cuối
-          now, // last_review_vi - thời gian review cuối
+          now, // review_time_en
+          now, // review_time_vi
+          now, // last_review_en
+          now, // last_review_vi
           firebase_uid,
           part_of_speech || null
         ]
@@ -182,83 +183,8 @@ export default async function handler(
         last_review_en: now,
         last_review_vi: now
       });
-      
     } catch (error) {
-      res.status(500).json({ error: 'Failed to add/update term' });
+      return res.status(500).json({ error: 'Failed to add new vocab' });
     }
   }
-
-  // Xóa một từ vựng
-  if (method === 'DELETE') {
-    const { vocab, id } = body;
-    
-    if (!vocab && !id) {
-      return res.status(400).json({ error: 'Vocab or ID is required' });
-    }
-
-    try {
-      let query, params;
-      
-      if (id) {
-        query = 'DELETE FROM terms WHERE id = ? AND firebase_uid = ?';
-        params = [id, firebase_uid];
-      } else {
-        query = 'DELETE FROM terms WHERE vocab = ? AND firebase_uid = ?';
-        params = [vocab, firebase_uid];
-      }
-      
-      const [result] = await db.execute(query, params);
-      
-      return res.status(200).json({ 
-        success: true, 
-        message: `Đã xóa từ vựng ${id ? `ID ${id}` : `"${vocab}"`}` 
-      });
-    } catch (error) {
-      return res.status(500).json({ error: 'Failed to delete term' });
-    }
-  }
-
-  // Cập nhật một từ vựng
-  if (method === 'PUT') {
-    const { id, vocab, meaning, example, notes, part_of_speech, level_en, level_vi } = body;
-    
-    if (!id) {
-      return res.status(400).json({ error: 'ID is required' });
-    }
-    
-    try {
-      const [result] = await db.execute(
-        `UPDATE terms 
-         SET vocab = COALESCE(?, vocab),
-             meanings = COALESCE(?, meanings),
-             example_sentence = COALESCE(?, example_sentence),
-             notes = COALESCE(?, notes),
-             part_of_speech = COALESCE(?, part_of_speech),
-             level_en = COALESCE(?, level_en),
-             level_vi = COALESCE(?, level_vi),
-             updated_at = NOW()
-         WHERE id = ? AND firebase_uid = ?`,
-        [
-          vocab || null,
-          meaning ? JSON.stringify([meaning]) : null,
-          example || null,
-          notes || null,
-          part_of_speech || null,
-          level_en || null,
-          level_vi || null,
-          id,
-          firebase_uid
-        ]
-      );
-      
-      return res.status(200).json({ 
-        success: true, 
-        message: `Đã cập nhật từ vựng ID ${id}` 
-      });
-    } catch (error) {
-      return res.status(500).json({ error: 'Failed to update term' });
-    }
-  }
-
-  return res.status(405).json({ error: 'Method not allowed' });
-} 
+}

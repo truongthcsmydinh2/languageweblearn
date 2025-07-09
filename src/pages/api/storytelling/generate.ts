@@ -38,13 +38,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Nếu người dùng chọn từ cụ thể
       const placeholders = selectedTerms.map(() => '?').join(',');
       const [selectedTermsResult] = await db.execute(
-        `SELECT id, vocab, meaning, part_of_speech 
+        `SELECT id, vocab, meanings, part_of_speech 
          FROM terms 
-         WHERE id IN (${placeholders})
+         WHERE id IN (${placeholders}) 
          AND firebase_uid = ?`,
-        [...selectedTerms, userId || null]
-      ) as [Term[], any];
-      terms = selectedTermsResult;
+        [...selectedTerms, userId]
+      );
+      // Parse meanings và lấy nghĩa đầu tiên
+      const termsResult = Array.isArray(selectedTermsResult) ? selectedTermsResult.map((row: any) => {
+        let meanings = [];
+        try {
+          if (row.meanings) {
+            meanings = typeof row.meanings === 'string' ? JSON.parse(row.meanings) : row.meanings;
+          }
+        } catch (e) { meanings = []; }
+        return {
+          ...row,
+          meaning: meanings.length > 0 ? meanings[0] : '',
+          meanings
+        };
+      }) : [];
+      terms = termsResult;
     } else {
       // Nếu không chọn từ cụ thể, lấy ngẫu nhiên
       const [randomTerms] = await db.execute(
@@ -63,8 +77,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Initialize the Google AI
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
 
     // Tạo prompt cho AI
     const wordsWithMeanings = terms.map((term: Term) => 
@@ -96,14 +110,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const result = await model.generateContent(prompt);
     const storyContent = result.response.text();
 
-    // Tạo UUID cho story mới
-    const storyId = uuidv4();
-
     // Tạo story mới trong database
-    await db.execute(
-      `INSERT INTO stories (id, content) VALUES (?, ?)`,
-      [storyId, storyContent]
+    const [insertResult] = await db.execute(
+      `INSERT INTO stories (user_id, content) VALUES (?, ?)`,
+      [userId, storyContent]
     );
+    // Lấy id vừa tạo
+    const storyId = (insertResult as any).insertId;
 
     // Thêm các từ vựng vào story_terms
     for (const term of terms) {
@@ -123,7 +136,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         
         // Lưu vào database
         await db.execute(
-          `INSERT INTO story_terms (storyId, vocabId, context, contextual_meaning) VALUES (?, ?, ?, ?)`,
+          `INSERT INTO story_terms (story_id, vocab_id, context, contextual_meaning) VALUES (?, ?, ?, ?)`,
           [storyId, term.id, context, contextualMeaning]
         );
       } else {
@@ -139,13 +152,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const context = storyContent.substring(start, end);
           
           await db.execute(
-            `INSERT INTO story_terms (storyId, vocabId, context, contextual_meaning) VALUES (?, ?, ?, ?)`,
+            `INSERT INTO story_terms (story_id, vocab_id, context, contextual_meaning) VALUES (?, ?, ?, ?)`,
             [storyId, term.id, context, term.meaning]
           );
         } else {
           // Nếu không tìm thấy từ vựng trong câu chuyện, lưu toàn bộ nội dung
           await db.execute(
-            `INSERT INTO story_terms (storyId, vocabId, context, contextual_meaning) VALUES (?, ?, ?, ?)`,
+            `INSERT INTO story_terms (story_id, vocab_id, context, contextual_meaning) VALUES (?, ?, ?, ?)`,
             [storyId, term.id, storyContent, term.meaning]
           );
         }

@@ -15,25 +15,53 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const placeholders = idArray.map(() => '?').join(',');
       
       const [result] = await db.execute(
-        `SELECT id, vocab, meaning, part_of_speech 
+        `SELECT id, vocab, meanings, part_of_speech 
          FROM terms 
          WHERE id IN (${placeholders})`,
         [...idArray]
       );
       
-      return res.status(200).json({ terms: result });
+      // Xử lý meanings
+      const terms = Array.isArray(result) ? result.map((row: any) => {
+        let meanings = [];
+        try {
+          if (row.meanings) {
+            meanings = typeof row.meanings === 'string' ? JSON.parse(row.meanings) : row.meanings;
+          }
+        } catch (e) { meanings = []; }
+        return {
+          ...row,
+          meaning: meanings.length > 0 ? meanings[0] : '',
+          meanings
+        };
+      }) : [];
+      return res.status(200).json({ terms });
     }
     
     // Nếu chỉ có userId được cung cấp
     if (userId) {
       const [result] = await db.execute(
-        `SELECT id, vocab, meaning, part_of_speech 
+        `SELECT id, vocab, meanings, part_of_speech 
          FROM terms 
          WHERE firebase_uid = ?`,
         [userId]
       );
       
-      return res.status(200).json({ terms: result });
+      // Xử lý meanings
+      const terms = Array.isArray(result) ? result.map((row: any) => {
+        let meanings = [];
+        try {
+          if (row.meanings) {
+            meanings = typeof row.meanings === 'string' ? JSON.parse(row.meanings) : row.meanings;
+          }
+        } catch (e) { meanings = []; }
+        return {
+          ...row,
+          meaning: meanings.length > 0 ? meanings[0] : '',
+          meanings
+        };
+      }) : [];
+      return res.status(200).json({ terms });
     }
     
     return res.status(400).json({ message: 'Thiếu tham số người dùng hoặc danh sách ID' });

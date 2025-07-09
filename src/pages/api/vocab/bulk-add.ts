@@ -75,7 +75,7 @@ export default async function handler(
           const meaningsArray = [term.meaning.trim()];
           
           await db.execute(
-            'INSERT INTO terms (vocab, meanings, level_en, level_vi, review_time_en, review_time_vi, firebase_uid, part_of_speech) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO terms (vocab, meanings, level_en, level_vi, review_time_en, review_time_vi, firebase_uid, part_of_speech, status_learning_en, status_learning_vi) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)',
             [
               term.vocab.trim(),
               JSON.stringify(meaningsArray),
@@ -104,7 +104,7 @@ export default async function handler(
               const meaningsArray = [term.meaning.trim()];
               
               await db.execute(
-                'INSERT INTO terms (vocab, meanings, level_en, level_vi, review_time_en, review_time_vi, firebase_uid, part_of_speech) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                'INSERT INTO terms (vocab, meanings, level_en, level_vi, review_time_en, review_time_vi, firebase_uid, part_of_speech, status_learning_en, status_learning_vi) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)',
                 [
                   modifiedVocab,
                   JSON.stringify(meaningsArray),

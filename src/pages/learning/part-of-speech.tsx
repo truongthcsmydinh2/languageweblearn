@@ -164,23 +164,23 @@ const PartOfSpeechPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-lg">Đang tải dữ liệu...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <p className="text-lg text-gray-200">Đang tải dữ liệu...</p>
       </div>
     );
   }
 
   if (allTerms.length === 0) {
     return (
-      <div className="min-h-screen p-4">
-        <div className="max-w-lg mx-auto bg-white rounded-lg shadow p-6">
-          <h1 className="text-2xl font-bold mb-4">Không có đủ dữ liệu</h1>
-          <p className="mb-4">
+      <div className="min-h-screen bg-gray-900 p-4 flex items-center justify-center">
+        <div className="max-w-lg mx-auto bg-gray-800 rounded-2xl shadow-2xl border border-gray-700 p-8">
+          <h1 className="text-2xl font-bold mb-4 text-primary-200">Không có đủ dữ liệu</h1>
+          <p className="mb-4 text-gray-300">
             Bạn cần thêm từ vựng có từ loại để sử dụng tính năng này.
           </p>
           <button
             onClick={() => router.push('/vocab/add')}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+            className="bg-gradient-to-r from-primary-200 to-secondary-200 text-gray-900 px-6 py-3 rounded-xl font-bold shadow hover:from-primary-300 hover:to-secondary-300 transition-all"
           >
             Thêm từ mới
           </button>
@@ -193,55 +193,50 @@ const PartOfSpeechPage = () => {
   if (isResultPage) {
     const accuracy = score.total > 0 ? (score.correct / score.total) * 100 : 0;
     const incorrectAnswers = answerResults.filter(result => !result.isCorrect);
-    
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 py-10 px-4">
-        <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-lg p-6">
+      <div className="min-h-screen bg-gray-900 py-10 px-4 flex items-center justify-center">
+        <div className="max-w-3xl mx-auto bg-gray-800 rounded-2xl shadow-2xl border border-gray-700 p-8">
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-center mb-2">Kết quả luyện tập</h1>
-            <p className="text-center text-gray-600 mb-6">
+            <h1 className="text-3xl font-bold text-center mb-2 text-primary-200">Kết quả luyện tập</h1>
+            <p className="text-center text-gray-400 mb-6">
               Bạn đã hoàn thành phần luyện tập từ loại!
             </p>
-            
             {/* Thống kê tổng quan */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-              <div className="bg-blue-50 rounded-lg p-4 text-center">
-                <div className="text-3xl font-bold text-blue-700">{score.correct}/{score.total}</div>
-                <div className="text-sm text-gray-600">Câu trả lời đúng</div>
+              <div className="bg-success-200/10 rounded-lg p-6 text-center">
+                <div className="text-3xl font-bold text-success-200">{score.correct}/{score.total}</div>
+                <div className="text-sm text-gray-300">Câu trả lời đúng</div>
               </div>
-              
-              <div className="bg-green-50 rounded-lg p-4 text-center">
-                <div className="text-3xl font-bold text-green-700">{accuracy.toFixed(1)}%</div>
-                <div className="text-sm text-gray-600">Độ chính xác</div>
+              <div className="bg-primary-200/10 rounded-lg p-6 text-center">
+                <div className="text-3xl font-bold text-primary-200">{accuracy.toFixed(1)}%</div>
+                <div className="text-sm text-gray-300">Độ chính xác</div>
               </div>
-              
-              <div className="bg-purple-50 rounded-lg p-4 text-center">
-                <div className="text-3xl font-bold text-purple-700">{formatDuration(startTime, endTime)}</div>
-                <div className="text-sm text-gray-600">Thời gian hoàn thành</div>
+              <div className="bg-secondary-200/10 rounded-lg p-6 text-center">
+                <div className="text-3xl font-bold text-secondary-200">{formatDuration(startTime, endTime)}</div>
+                <div className="text-sm text-gray-300">Thời gian hoàn thành</div>
               </div>
             </div>
-            
             {/* Danh sách từ trả lời sai */}
             {incorrectAnswers.length > 0 && (
               <div className="mb-6">
-                <h2 className="text-lg font-semibold mb-3">Từ vựng cần lưu ý:</h2>
-                <div className="bg-red-50 rounded-lg overflow-hidden">
+                <h2 className="text-lg font-semibold mb-3 text-error-200">Từ vựng cần lưu ý:</h2>
+                <div className="bg-error-200/10 rounded-xl overflow-hidden">
                   <table className="min-w-full">
-                    <thead className="bg-red-100">
+                    <thead className="bg-error-200/20">
                       <tr>
-                        <th className="py-2 px-4 text-left font-medium text-red-800">Từ vựng</th>
-                        <th className="py-2 px-4 text-left font-medium text-red-800">Nghĩa</th>
-                        <th className="py-2 px-4 text-left font-medium text-red-800">Đáp án đúng</th>
-                        <th className="py-2 px-4 text-left font-medium text-red-800">Đáp án của bạn</th>
+                        <th className="py-2 px-4 text-left font-medium text-error-200">Từ vựng</th>
+                        <th className="py-2 px-4 text-left font-medium text-error-200">Nghĩa</th>
+                        <th className="py-2 px-4 text-left font-medium text-error-200">Đáp án đúng</th>
+                        <th className="py-2 px-4 text-left font-medium text-error-200">Đáp án của bạn</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-red-200">
+                    <tbody className="divide-y divide-error-200/30">
                       {incorrectAnswers.map((result, index) => (
-                        <tr key={index} className="hover:bg-red-100">
-                          <td className="py-2 px-4 font-medium">{result.term.vocab}</td>
-                          <td className="py-2 px-4">{result.term.meaning}</td>
-                          <td className="py-2 px-4">{getLabelForPartOfSpeech(result.term.part_of_speech || '')}</td>
-                          <td className="py-2 px-4">{getLabelForPartOfSpeech(result.selectedAnswer)}</td>
+                        <tr key={index} className="hover:bg-error-200/20">
+                          <td className="py-2 px-4 font-medium text-gray-100">{result.term.vocab}</td>
+                          <td className="py-2 px-4 text-gray-300">{result.term.meaning}</td>
+                          <td className="py-2 px-4 text-success-200">{getLabelForPartOfSpeech(result.term.part_of_speech || '')}</td>
+                          <td className="py-2 px-4 text-error-200">{getLabelForPartOfSpeech(result.selectedAnswer)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -249,18 +244,17 @@ const PartOfSpeechPage = () => {
                 </div>
               </div>
             )}
-            
             {/* Các nút điều hướng */}
             <div className="flex flex-col sm:flex-row justify-center gap-4 mt-8">
               <button
                 onClick={startLearning}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-6 rounded-lg font-medium transition-colors duration-200"
+                className="bg-gradient-to-r from-primary-200 to-secondary-200 text-gray-900 py-3 px-8 rounded-xl font-bold shadow hover:from-primary-300 hover:to-secondary-300 transition-all"
               >
                 Luyện tập lại
               </button>
               <button
                 onClick={backToLanding}
-                className="bg-gray-600 hover:bg-gray-700 text-white py-2 px-6 rounded-lg font-medium transition-colors duration-200"
+                className="bg-gray-700 hover:bg-gray-600 text-gray-100 py-3 px-8 rounded-xl font-bold shadow transition-all"
               >
                 Quay về trang chính
               </button>
@@ -274,25 +268,23 @@ const PartOfSpeechPage = () => {
   // Hiển thị landing page
   if (isLandingPage) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 py-10 px-4">
-        <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-lg p-6">
+      <div className="min-h-screen bg-gray-900 py-10 px-4 flex items-center justify-center">
+        <div className="max-w-2xl mx-auto bg-gray-800 rounded-2xl shadow-2xl border border-gray-700 p-8">
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-center mb-2">Luyện tập từ loại</h1>
-            <p className="text-center text-gray-600 mb-6">
+            <h1 className="text-3xl font-bold text-center mb-2 text-primary-200">Luyện tập từ loại</h1>
+            <p className="text-center text-gray-400 mb-6">
               Chọn từ loại đúng cho từ vựng để rèn luyện khả năng phân biệt từ loại
             </p>
-            
-            <div className="bg-blue-50 rounded-lg p-4 mb-6">
-              <h2 className="text-lg font-semibold mb-2">Cách chơi:</h2>
-              <ul className="list-disc pl-5 space-y-1">
+            <div className="bg-primary-200/10 rounded-xl p-6 mb-6">
+              <h2 className="text-lg font-semibold mb-2 text-primary-200">Cách chơi:</h2>
+              <ul className="list-disc pl-5 space-y-1 text-gray-300">
                 <li>Bạn sẽ thấy một từ vựng và nghĩa của nó</li>
                 <li>Chọn từ loại đúng cho từ đó</li>
                 <li>Trả lời đúng để tích điểm</li>
               </ul>
             </div>
-            
             <div className="mb-6">
-              <h3 className="font-medium mb-2">Số lượng từ vựng muốn học:</h3>
+              <h3 className="font-medium mb-2 text-gray-200">Số lượng từ vựng muốn học:</h3>
               <div className="flex items-center">
                 <input
                   type="range"
@@ -300,20 +292,19 @@ const PartOfSpeechPage = () => {
                   max={Math.min(100, totalAvailableTerms)}
                   value={termCount}
                   onChange={(e) => setTermCount(parseInt(e.target.value))}
-                  className="flex-grow mr-4"
+                  className="flex-grow mr-4 accent-primary-200"
                 />
-                <div className="bg-indigo-100 px-3 py-1 rounded-lg font-medium">
+                <div className="bg-primary-200/20 px-4 py-2 rounded-xl font-bold text-primary-200">
                   {termCount} từ
                 </div>
               </div>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-gray-400 mt-1">
                 Tổng số từ có sẵn: {totalAvailableTerms}
               </p>
             </div>
-            
             <button
               onClick={startLearning}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-lg font-medium transition-colors duration-200"
+              className="w-full bg-gradient-to-r from-primary-200 to-secondary-200 text-gray-900 py-4 rounded-xl font-bold shadow hover:from-primary-300 hover:to-secondary-300 transition-all text-lg"
             >
               Bắt đầu học
             </button>
@@ -325,52 +316,48 @@ const PartOfSpeechPage = () => {
 
   // Hiển thị trang luyện tập
   const currentTerm = terms[currentIndex];
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 py-10 px-4">
-      <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-lg p-6">
+    <div className="min-h-screen bg-gray-900 py-10 px-4 flex items-center justify-center">
+      <div className="max-w-2xl mx-auto bg-gray-800 rounded-2xl shadow-2xl border border-gray-700 p-8">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-center mb-2">Luyện tập từ loại</h1>
-          <p className="text-center text-gray-600">
+          <h1 className="text-3xl font-bold text-center mb-2 text-primary-200">Luyện tập từ loại</h1>
+          <p className="text-center text-gray-400">
             Chọn từ loại đúng cho từ vựng bên dưới
           </p>
         </div>
-
         <div className="mb-8">
           <div className="text-center mb-2">
-            <span className="text-sm text-gray-500">Từ {currentIndex + 1}/{terms.length}</span>
+            <span className="text-sm text-gray-400">Từ {currentIndex + 1}/{terms.length}</span>
           </div>
-          <div className="text-3xl font-bold text-center mb-2">{currentTerm?.vocab}</div>
-          <div className="text-gray-600 text-center italic">{currentTerm?.meaning}</div>
+          <div className="text-3xl font-bold text-center mb-2 text-gray-100">{currentTerm?.vocab}</div>
+          <div className="text-gray-300 text-center italic">{currentTerm?.meaning}</div>
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           {PARTS_OF_SPEECH.map((pos) => (
             <button
               key={pos.value}
               onClick={() => handleSelectAnswer(pos.value)}
               disabled={selectedAnswer !== null}
-              className={`p-3 rounded-lg text-left transition-colors ${
+              className={`p-5 rounded-xl text-left font-semibold text-lg transition-all shadow-lg border-2 ${
                 selectedAnswer === pos.value
                   ? isCorrect
-                    ? 'bg-green-100 border-2 border-green-500'
-                    : 'bg-red-100 border-2 border-red-500'
-                  : 'bg-gray-100 hover:bg-gray-200'
+                    ? 'bg-success-200/20 border-success-200 text-success-200 scale-105'
+                    : 'bg-error-200/20 border-error-200 text-error-200 scale-105'
+                  : 'bg-gray-700 border-gray-600 text-gray-200 hover:border-primary-200 hover:bg-primary-200/10'
               }`}
             >
-              <div className="font-medium">{pos.label}</div>
-              <div className="text-sm text-gray-600">{pos.description}</div>
+              <div className="font-bold">{pos.label}</div>
+              <div className="text-sm text-gray-400">{pos.description}</div>
             </button>
           ))}
         </div>
-
         <div className="flex justify-between items-center">
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-gray-400">
             Đúng: {score.correct} / {score.total}
           </div>
           <button
             onClick={showResults}
-            className="text-indigo-600 hover:text-indigo-800 text-sm"
+            className="text-secondary-200 hover:text-secondary-300 text-sm font-bold"
           >
             Dừng lại
           </button>

@@ -11,10 +11,10 @@ interface VocabCardProps {
     id: number;
     vocab: string;
     meanings: string[];
-    review_time_en: number | null;
-    review_time_vi: number | null;
-    last_review_en: number | null;
-    last_review_vi: number | null;
+    review_time_en: string | null;
+    review_time_vi: string | null;
+    last_review_en: string | null;
+    last_review_vi: string | null;
     level_en: number;
     level_vi: number;
     created_at: string;

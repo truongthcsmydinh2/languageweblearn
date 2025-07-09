@@ -101,15 +101,6 @@ const LearningPage = () => {
       color: 'bg-warning-200',
       route: '/learning/storytelling'
     },
-    {
-      id: 'spelling',
-      title: 'Chính tả',
-      description: 'Luyện tập đánh vần và chính tả',
-      icon: '✏️',
-      color: 'bg-info-200',
-      route: '/learning/spelling'
-    },
-
   ];
 
   const navigateToMode = (route: string) => {

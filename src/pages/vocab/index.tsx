@@ -11,8 +11,8 @@ interface Term {
   level_en: number;
   level_vi: number;
   time_added: number;
-  review_time_en: number;
-  review_time_vi: number;
+  review_time_en: string;
+  review_time_vi: string;
   example?: string;
   notes?: string;
   part_of_speech?: string;
@@ -83,9 +83,9 @@ const VocabListPage: React.FC = () => {
   const sortedTerms = [...vocabTerms].sort((a, b) => {
     switch (sortBy) {
       case 'newest':
-        return b.time_added - a.time_added;
+        return new Date(b.time_added).getTime() - new Date(a.time_added).getTime();
       case 'oldest':
-        return a.time_added - b.time_added;
+        return new Date(a.time_added).getTime() - new Date(b.time_added).getTime();
       case 'alphabetical':
         return a.vocab.localeCompare(b.vocab);
       default:
@@ -205,7 +205,7 @@ const VocabListPage: React.FC = () => {
   };
 
   // Helper function to render review time with status
-  const renderReviewTime = (reviewTime: number) => {
+  const renderReviewTime = (reviewTime: string) => {
     const reviewDate = new Date(reviewTime);
     const today = new Date();
     
@@ -279,6 +279,34 @@ const VocabListPage: React.FC = () => {
     );
   };
 
+  // Sửa hàm resetLevel:
+  const resetLevel = async (termId: number, type: 'en' | 'vi' | 'all') => {
+    try {
+      const response = await fetch('/api/vocab/reset-level', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ termId, type })
+      });
+      if (!response.ok) throw new Error('Lỗi khi reset cấp độ');
+      // Cập nhật lại UI
+      const now = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+      setVocabTerms(prev => prev.map(term =>
+        (!termId || term.id === termId)
+          ? {
+              ...term,
+              level_en: 0,
+              level_vi: 0,
+              review_time_en: now,
+              review_time_vi: now
+            }
+          : term
+      ));
+      alert('Đã reset thành công!');
+    } catch (err) {
+      alert('Lỗi khi reset cấp độ!');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen bg-gray-800">
@@ -314,9 +342,6 @@ const VocabListPage: React.FC = () => {
           <div className="space-x-2">
             <Link href="/vocab/add" className="px-4 py-2 bg-primary-200 text-gray-800 rounded-md hover:bg-primary-300">
               Thêm từ mới
-            </Link>
-            <Link href="/vocab/sets" className="px-4 py-2 bg-secondary-200 text-gray-800 rounded-md hover:bg-secondary-300">
-              Bộ từ vựng
             </Link>
             <button 
               onClick={() => setIsDeleteModalOpen(true)}
@@ -413,7 +438,36 @@ const VocabListPage: React.FC = () => {
                   Nghĩa
                 </th>
                 <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">
-                  Cấp độ (EN/VI)
+                  <div className="flex items-center space-x-2">
+                    <span>Cấp độ (EN/VI)</span>
+                    <button
+                      title="Reset tất cả từ"
+                      onClick={async () => {
+                        if (!window.confirm('Bạn chắc chắn muốn reset tất cả cấp độ và thời gian ôn tập của mọi từ?')) return;
+                        try {
+                          const response = await fetch('/api/vocab/reset-level', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ type: 'all' })
+                          });
+                          if (!response.ok) throw new Error('Lỗi khi reset tất cả');
+                          setVocabTerms(prev => prev.map(term => ({
+                            ...term,
+                            level_en: 0,
+                            level_vi: 0,
+                            review_time_en: '0000-00-00',
+                            review_time_vi: '0000-00-00'
+                          })));
+                          alert('Đã reset tất cả thành công!');
+                        } catch (err) {
+                          alert('Lỗi khi reset tất cả!');
+                        }
+                      }}
+                      className="ml-2 px-3 py-1 bg-error-200 text-gray-800 rounded hover:bg-error-300 text-xs font-bold"
+                    >
+                      Reset tất cả
+                    </button>
+                  </div>
                 </th>
                 <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider hidden lg:table-cell">
                   <div className="flex flex-col items-center">
@@ -454,7 +508,7 @@ const VocabListPage: React.FC = () => {
                       <div className="text-lg font-semibold text-gray-300">{term.meanings?.[0] || term.vietnamese || ''}</div> 
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
-                      <div className="flex space-x-2">
+                      <div className="flex space-x-2 items-center">
                         {renderLevelBadge(term.level_en)}
                         {renderLevelBadge(term.level_vi)}
                       </div>

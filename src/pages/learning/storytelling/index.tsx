@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts/AuthContext';
 import StoryGenerator from '@/components/storytelling/StoryGenerator';
 import StoryWithMultipleChoice from '@/components/storytelling/StoryWithMultipleChoice';
 import StoryWithInput from '@/components/storytelling/StoryWithInput';
+import Link from 'next/link';
 
 interface Term {
   id: number;
@@ -26,6 +27,13 @@ interface Story {
   terms: StoryTerm[];
 }
 
+interface StoryTermAPI {
+  id: string | number;
+  vocab_id: number;
+  context: string;
+  contextual_meaning: string;
+}
+
 type LearningStep = 'generate' | 'multiple-choice' | 'input' | 'complete';
 
 export default function StorytellingPage() {
@@ -34,6 +42,48 @@ export default function StorytellingPage() {
   const [story, setStory] = useState<Story | null>(null);
   const [step, setStep] = useState<LearningStep>('generate');
   const [terms, setTerms] = useState<Term[]>([]);
+
+  useEffect(() => {
+    // Nếu là học lại story chêm
+    if (router.query.reLearn === '1' && router.query.storyId) {
+      const fetchOldStory = async () => {
+        setStep('generate');
+        setStory(null);
+        setTerms([]);
+        try {
+          const res = await fetch(`/api/storytelling/story?id=${router.query.storyId}`);
+          if (!res.ok) throw new Error('Không tìm thấy chuyện chêm');
+          const data = await res.json();
+          // Chuyển đổi dữ liệu về đúng định dạng
+          const oldStory = {
+            id: String(data.story.id),
+            content: data.story.content,
+            originalContent: data.story.content,
+            terms: (data.terms || []).map((t: StoryTermAPI) => ({
+              id: String(t.id),
+              vocabId: t.vocab_id,
+              context: t.context,
+              contextual_meaning: t.contextual_meaning
+            }))
+          };
+          setStory(oldStory);
+          // Lấy chi tiết từ vựng nếu có vocabId
+          const vocabIds = oldStory.terms.map(t => t.vocabId).filter(Boolean);
+          if (vocabIds.length > 0) {
+            const resp = await fetch(`/api/terms?ids=${vocabIds.join(',')}`);
+            if (resp.ok) {
+              const dataTerms = await resp.json();
+              setTerms(dataTerms.terms || []);
+            }
+          }
+          setStep('multiple-choice');
+        } catch (err) {
+          setStep('generate');
+        }
+      };
+      fetchOldStory();
+    }
+  }, [router.query.reLearn, router.query.storyId]);
 
   const handleStoryGenerated = (newStory: Omit<Story, 'originalContent'>) => {
     setStory({
@@ -139,7 +189,7 @@ export default function StorytellingPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl mx-auto">
           <div className="text-center">
             <h1 className="text-3xl font-bold text-gray-900 mb-4">
@@ -157,18 +207,36 @@ export default function StorytellingPage() {
     );
   }
 
+  // Nếu đang học lại story chêm thì ẩn nút tạo mới
+  if (router.query.reLearn === '1' && router.query.storyId && step === 'generate') {
+    return (
+      <div className="min-h-screen bg-gray-900 py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center text-white">
+        Đang tải lại chuyện chêm...
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         {step === 'generate' && (
           <>
-            <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-4">
-                Tạo câu chuyện chêm từ vựng
-              </h1>
-              <p className="text-lg text-gray-600">
-                Chọn cách học phù hợp với bạn
-              </p>
+            <div className="flex items-center justify-between mb-8">
+              <div className="text-center flex-1">
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                  Tạo câu chuyện chêm từ vựng
+                </h1>
+                <p className="text-lg text-gray-600">
+                  Chọn cách học phù hợp với bạn
+                </p>
+              </div>
+              <Link href="/learning/storytelling/history" legacyBehavior>
+                <a className="ml-4 p-2 rounded-full bg-gray-800 hover:bg-primary-200/20 transition-colors" title="Xem lịch sử chuyện chêm">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 text-primary-200">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
+                  </svg>
+                </a>
+              </Link>
             </div>
             <StoryGenerator onStoryGenerated={handleStoryGenerated} />
           </>

@@ -260,7 +260,7 @@ export default function StoryWithInput({ story, terms, onComplete }: Props) {
 
   const getWordStyle = (term: Term) => {
     const answer = answers[term.id.toString()];
-    if (!answer) return 'bg-yellow-100 cursor-pointer hover:bg-yellow-200';
+    if (!answer) return 'bg-yellow-100 cursor-pointer hover:bg-yellow-200 text-gray-900';
     if (answer.isCorrect) return 'bg-green-100 text-green-800';
     return 'bg-red-100 text-red-800 cursor-pointer hover:bg-red-200';
   };
@@ -337,41 +337,38 @@ export default function StoryWithInput({ story, terms, onComplete }: Props) {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="max-w-4xl mx-auto p-6 bg-gray-900 rounded-2xl shadow-xl border border-gray-700">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Nhập nghĩa tiếng Việt</h2>
-        <p className="text-gray-600">
+        <h2 className="text-2xl font-bold text-primary-200 mb-2">Nhập nghĩa tiếng Việt</h2>
+        <p className="text-primary-200/80">
           Click vào từ tiếng Anh và nhập nghĩa tiếng Việt phù hợp
         </p>
         <div className="mt-4 flex items-center gap-4">
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-primary-200/80">
             Đã hoàn thành: {completedCount}/{effectiveTerms.length} từ
           </div>
           {completedCount === effectiveTerms.length && (
             <button
               onClick={onComplete}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-4 py-2 bg-gradient-to-r from-primary-200 to-secondary-200 text-gray-900 font-bold rounded-lg shadow-lg hover:from-primary-300 hover:to-secondary-300 transition-all"
             >
               Tiếp tục
             </button>
           )}
         </div>
       </div>
-
-      <div className="bg-white rounded-xl shadow-lg p-6 relative">
-        <div className="prose max-w-none text-gray-800 leading-relaxed">
+      <div className="bg-gray-800 rounded-xl shadow-lg p-6 relative border border-gray-700">
+        <div className="prose max-w-none text-primary-200 leading-relaxed">
           {renderStory()}
         </div>
-
         <AnimatePresence>
           {selectedWord && (
             <>
               {/* Overlay để bắt sự kiện click ra ngoài */}
               <div 
-                className="fixed inset-0 bg-black bg-opacity-10 z-40"
+                className="fixed inset-0 bg-black bg-opacity-20 z-40"
                 onClick={handleClosePopup}
               />
-              
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -382,9 +379,9 @@ export default function StoryWithInput({ story, terms, onComplete }: Props) {
                   top: Math.min(selectedWord.position.y, window.innerHeight - 230)
                 }}
               >
-                <div className="bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden w-64 max-h-[calc(100vh-2rem)]">
-                  <div className="p-4 bg-gray-50 border-b border-gray-200">
-                    <h3 className="font-medium text-gray-800">
+                <div className="bg-gray-900 rounded-lg shadow-xl border border-gray-700 overflow-hidden w-64 max-h-[calc(100vh-2rem)]">
+                  <div className="p-4 bg-gray-800 border-b border-gray-700">
+                    <h3 className="font-medium text-primary-200">
                       Nhập nghĩa tiếng Việt cho từ "{selectedWord.word}"
                     </h3>
                   </div>
@@ -395,25 +392,25 @@ export default function StoryWithInput({ story, terms, onComplete }: Props) {
                       onChange={(e) => handleInputChange(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
                       placeholder="Nhập nghĩa tiếng Việt..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="text-primary-200 w-full px-3 py-2 border border-primary-200 rounded-lg focus:ring-2 focus:ring-secondary-200 focus:border-transparent bg-gray-900 font-semibold"
                       autoFocus
                     />
                     <div className="mt-3 flex justify-between">
                       <button
                         onClick={handleDontKnow}
-                        className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
+                        className="px-3 py-2 bg-gray-700 text-primary-200 rounded-lg hover:bg-primary-200/10 transition-colors text-sm font-semibold border border-primary-200"
                       >
                         Tôi không biết
                       </button>
                       <button
                         onClick={handleSubmit}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        className="px-4 py-2 bg-gradient-to-r from-primary-200 to-secondary-200 text-gray-900 font-bold rounded-lg shadow-lg hover:from-primary-300 hover:to-secondary-300 transition-all"
                       >
                         Kiểm tra
                       </button>
                     </div>
                     {answers[selectedWord.term.id.toString()]?.attempts > 0 && !answers[selectedWord.term.id.toString()]?.isCorrect && (
-                      <div className="mt-3 text-sm text-red-600">
+                      <div className="mt-3 text-sm text-red-400">
                         Gợi ý: {selectedWord.term.meaning.slice(0, 3)}...
                       </div>
                     )}

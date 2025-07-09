@@ -700,195 +700,185 @@ const ExamPage = () => {
 
   return (
     <Layout>
-      <div className="w-full h-screen bg-gray-50 flex items-center justify-center p-2 sm:p-4">
-        <div className="w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl h-[calc(100vh-1rem)] sm:h-[calc(100vh-2rem)] bg-white rounded-xl shadow-lg overflow-hidden">
+      <div className="w-full h-screen bg-dark-900 flex items-center justify-center p-0 sm:p-0">
+        <div className="w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl h-[calc(100vh-1rem)] sm:h-[calc(100vh-2rem)] bg-gray-800 rounded-3xl shadow-2xl border border-gray-700 overflow-hidden">
           <div className="h-full flex flex-col">
-            
             {/* Content area với kích thước cố định */}
             <div className="flex-1 overflow-hidden">
               {/* Header với icon lịch sử */}
-              <div className="flex justify-between items-center p-4 sm:p-6 border-b border-gray-200">
+              <div className="flex justify-between items-center p-6 border-b border-gray-700 bg-gradient-to-r from-primary-200/10 to-secondary-200/10">
                 <div>
-                  <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-800 mb-1">Bài Kiểm Tra Từ Vựng</h1>
-                  <p className="text-sm sm:text-base text-gray-600">Kiểm tra kiến thức từ vựng của bạn</p>
+                  <h1 className="text-3xl font-bold text-primary-200 mb-1 drop-shadow">Bài Kiểm Tra Từ Vựng</h1>
+                  <p className="text-base text-gray-400">Kiểm tra kiến thức từ vựng của bạn</p>
                 </div>
                 <button
                   onClick={openHistory}
-                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="flex items-center px-5 py-2 bg-gradient-to-r from-primary-200 to-secondary-200 text-gray-900 font-semibold rounded-xl shadow hover:from-primary-300 hover:to-secondary-300 transition-all"
                 >
-                  <MdHistory className="w-5 h-5 mr-2" />
+                  <MdHistory className="w-6 h-6 mr-2 text-gray-800" />
                   <span className="hidden sm:inline">Lịch sử</span>
                 </button>
               </div>
-              
               {error && (
-                <div className="bg-red-50 border-l-4 border-red-400 p-3 sm:p-4 m-2 sm:m-4">
-                  <p className="text-red-700 text-sm sm:text-base">{error}</p>
+                <div className="bg-error-200/10 border-l-4 border-error-200 p-4 m-4 rounded-xl">
+                  <p className="text-error-200 text-base">{error}</p>
                 </div>
               )}
-              
               {examMode === 'setup' && (
-                <div className="h-full overflow-y-auto p-4 sm:p-6 lg:p-8">
-                  <div className="text-center mb-6 sm:mb-8">
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
-                      <MdSchool className="w-8 h-8 sm:w-10 sm:h-10 text-blue-600" />
+                <div className="h-full overflow-y-auto p-8">
+                  <div className="text-center mb-10">
+                    <div className="w-20 h-20 bg-primary-200 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+                      <MdSchool className="w-10 h-10 text-gray-800" />
                     </div>
-                    <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2 sm:mb-3">Thiết lập bài kiểm tra</h2>
+                    <h2 className="text-2xl font-bold text-gray-50 mb-3">Thiết lập bài kiểm tra</h2>
                   </div>
-                  
                   {/* Chọn level từ vựng */}
-                  <div className="mb-3">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                      <MdTrendingUp className="w-5 h-5 mr-2 text-blue-600" />
+                  <div className="mb-6">
+                    <h3 className="text-lg font-semibold text-primary-200 mb-4 flex items-center">
+                      <MdTrendingUp className="w-6 h-6 mr-2 text-primary-200" />
                       Chọn level từ vựng
                     </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                       {[0, 1, 2, 3, 4, 5].map(level => (
                         <button
                           key={level}
                           onClick={() => toggleLevel(level)}
-                          className={`p-3 rounded-lg border-2 transition-all ${
+                          className={`p-4 rounded-2xl border-2 font-semibold text-lg transition-all shadow-lg ${
                             examSettings.selectedLevels.includes(level)
-                              ? 'border-blue-500 bg-blue-50 text-blue-700'
-                              : 'border-gray-200 hover:border-gray-300'
+                              ? 'border-primary-200 bg-primary-200/20 text-primary-200 scale-105'
+                              : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-primary-200 hover:bg-primary-200/10'
                           }`}
                         >
                           <div className="text-center">
-                            <div className="text-lg font-bold">Level {level}</div>
-                            <div className="text-sm text-gray-600">{wordsByLevel[level] || 0} từ</div>
+                            <div className="font-bold">Level {level}</div>
+                            <div className="text-sm text-gray-400">{wordsByLevel[level] || 0} từ</div>
                           </div>
                         </button>
                       ))}
                     </div>
                   </div>
-                  
                   {/* Chọn loại câu hỏi */}
-                  <div className="mb-3">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                      <MdCheckBox className="w-5 h-5 mr-2 text-green-600" />
+                  <div className="mb-6">
+                    <h3 className="text-lg font-semibold text-success-200 mb-4 flex items-center">
+                      <MdCheckBox className="w-6 h-6 mr-2 text-success-200" />
                       Loại câu hỏi
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <button
                         onClick={() => toggleQuestionType('multipleChoice')}
-                        className={`p-4 rounded-lg border-2 transition-all text-left ${
+                        className={`p-5 rounded-2xl border-2 font-semibold transition-all shadow-lg text-left ${
                           examSettings.questionTypes.multipleChoice
-                            ? 'border-green-500 bg-green-50 text-green-700'
-                            : 'border-gray-200 hover:border-gray-300'
+                            ? 'border-success-200 bg-success-200/20 text-success-200 scale-105'
+                            : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-success-200 hover:bg-success-200/10'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-2">
-                          <span className="font-semibold">Trắc nghiệm</span>
+                          <span>Trắc nghiệm</span>
                           {examSettings.questionTypes.multipleChoice ? (
-                            <MdCheckBox className="w-5 h-5 text-green-600" />
+                            <MdCheckBox className="w-6 h-6 text-success-200" />
                           ) : (
-                            <MdCheckBoxOutlineBlank className="w-5 h-5 text-gray-400" />
+                            <MdCheckBoxOutlineBlank className="w-6 h-6 text-gray-400" />
                           )}
                         </div>
                         <p className="text-sm">Chọn đáp án đúng từ 4 lựa chọn</p>
                       </button>
-                      
                       <button
                         onClick={() => toggleQuestionType('trueFalse')}
-                        className={`p-4 rounded-lg border-2 transition-all text-left ${
+                        className={`p-5 rounded-2xl border-2 font-semibold transition-all shadow-lg text-left ${
                           examSettings.questionTypes.trueFalse
-                            ? 'border-green-500 bg-green-50 text-green-700'
-                            : 'border-gray-200 hover:border-gray-300'
+                            ? 'border-success-200 bg-success-200/20 text-success-200 scale-105'
+                            : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-success-200 hover:bg-success-200/10'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-2">
-                          <span className="font-semibold">Đúng/Sai</span>
+                          <span>Đúng/Sai</span>
                           {examSettings.questionTypes.trueFalse ? (
-                            <MdCheckBox className="w-5 h-5 text-green-600" />
+                            <MdCheckBox className="w-6 h-6 text-success-200" />
                           ) : (
-                            <MdCheckBoxOutlineBlank className="w-5 h-5 text-gray-400" />
+                            <MdCheckBoxOutlineBlank className="w-6 h-6 text-gray-400" />
                           )}
                         </div>
                         <p className="text-sm">Chọn đúng hoặc sai</p>
                       </button>
-                      
                       <button
                         onClick={() => toggleQuestionType('essay')}
-                        className={`p-4 rounded-lg border-2 transition-all text-left ${
+                        className={`p-5 rounded-2xl border-2 font-semibold transition-all shadow-lg text-left ${
                           examSettings.questionTypes.essay
-                            ? 'border-green-500 bg-green-50 text-green-700'
-                            : 'border-gray-200 hover:border-gray-300'
+                            ? 'border-success-200 bg-success-200/20 text-success-200 scale-105'
+                            : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-success-200 hover:bg-success-200/10'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-2">
-                          <span className="font-semibold">Tự luận</span>
+                          <span>Tự luận</span>
                           {examSettings.questionTypes.essay ? (
-                            <MdCheckBox className="w-5 h-5 text-green-600" />
+                            <MdCheckBox className="w-6 h-6 text-success-200" />
                           ) : (
-                            <MdCheckBoxOutlineBlank className="w-5 h-5 text-gray-400" />
+                            <MdCheckBoxOutlineBlank className="w-6 h-6 text-gray-400" />
                           )}
                         </div>
                         <p className="text-sm">Viết câu trả lời tự do</p>
                       </button>
                     </div>
                   </div>
-                  
                   {/* Chọn ngôn ngữ */}
-                  <div className="mb-8">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                      <MdLanguage className="w-5 h-5 mr-2 text-purple-600" />
+                  <div className="mb-10">
+                    <h3 className="text-lg font-semibold text-secondary-200 mb-4 flex items-center">
+                      <MdLanguage className="w-6 h-6 mr-2 text-secondary-200" />
                       Ngôn ngữ trả lời
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <button
                         onClick={() => toggleLanguage('english')}
-                        className={`p-4 rounded-lg border-2 transition-all text-left ${
+                        className={`p-5 rounded-2xl border-2 font-semibold transition-all shadow-lg text-left ${
                           examSettings.languages.english
-                            ? 'border-purple-500 bg-purple-50 text-purple-700'
-                            : 'border-gray-200 hover:border-gray-300'
+                            ? 'border-secondary-200 bg-secondary-200/20 text-secondary-200 scale-105'
+                            : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-secondary-200 hover:bg-secondary-200/10'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-2">
-                          <span className="font-semibold">Tiếng Anh</span>
+                          <span>Tiếng Anh</span>
                           {examSettings.languages.english ? (
-                            <MdCheckBox className="w-5 h-5 text-purple-600" />
+                            <MdCheckBox className="w-6 h-6 text-secondary-200" />
                           ) : (
-                            <MdCheckBoxOutlineBlank className="w-5 h-5 text-gray-400" />
+                            <MdCheckBoxOutlineBlank className="w-6 h-6 text-gray-400" />
                           )}
                         </div>
                         <p className="text-sm">Câu hỏi và trả lời bằng tiếng Anh</p>
                       </button>
-                      
                       <button
                         onClick={() => toggleLanguage('vietnamese')}
-                        className={`p-4 rounded-lg border-2 transition-all text-left ${
+                        className={`p-5 rounded-2xl border-2 font-semibold transition-all shadow-lg text-left ${
                           examSettings.languages.vietnamese
-                            ? 'border-purple-500 bg-purple-50 text-purple-700'
-                            : 'border-gray-200 hover:border-gray-300'
+                            ? 'border-secondary-200 bg-secondary-200/20 text-secondary-200 scale-105'
+                            : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-secondary-200 hover:bg-secondary-200/10'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-2">
-                          <span className="font-semibold">Tiếng Việt</span>
+                          <span>Tiếng Việt</span>
                           {examSettings.languages.vietnamese ? (
-                            <MdCheckBox className="w-5 h-5 text-purple-600" />
+                            <MdCheckBox className="w-6 h-6 text-secondary-200" />
                           ) : (
-                            <MdCheckBoxOutlineBlank className="w-5 h-5 text-gray-400" />
+                            <MdCheckBoxOutlineBlank className="w-6 h-6 text-gray-400" />
                           )}
                         </div>
                         <p className="text-sm">Câu hỏi và trả lời bằng tiếng Việt</p>
                       </button>
                     </div>
                   </div>
-                  
                   <div className="text-center">
                     <button
                       onClick={generateExam}
                       disabled={isGeneratingQuestions || filteredWords.length < 3}
-                      className="inline-flex items-center px-8 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="inline-flex items-center px-10 py-4 bg-gradient-to-r from-primary-200 to-secondary-200 text-gray-900 font-bold rounded-2xl shadow-lg hover:from-primary-300 hover:to-secondary-300 disabled:opacity-50 disabled:cursor-not-allowed text-lg transition-all"
                     >
                       {isGeneratingQuestions ? (
                         <>
-                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mr-2"></div>
                           Đang tạo bài kiểm tra...
                         </>
                       ) : (
                         <>
-                          <MdPlayArrow className="w-5 h-5 mr-2" />
+                          <MdPlayArrow className="w-6 h-6 mr-2" />
                           Bắt đầu làm bài kiểm tra
                         </>
                       )}
@@ -896,7 +886,6 @@ const ExamPage = () => {
                   </div>
                 </div>
               )}
-              
               {examMode === 'exam' && questions.length > 0 && (
                 <div className="h-full flex flex-col">
                   {/* Header with timer and progress */}
@@ -1234,7 +1223,7 @@ const ExamPage = () => {
                   <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
                   <p className="mt-4 text-gray-600">Đang tải lịch sử...</p>
                 </div>
-              ) : examHistory.length === 0 ? (
+              ) : (Array.isArray(examHistory) ? examHistory : []).length === 0 ? (
                 <div className="p-8 text-center">
                   <MdHistory className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-600">Chưa có lịch sử bài kiểm tra nào</p>
@@ -1340,7 +1329,7 @@ const ExamPage = () => {
                 // Danh sách bài kiểm tra
                 <div className="p-6">
                   <div className="space-y-4">
-                    {examHistory.map((history) => (
+                    {(Array.isArray(examHistory) ? examHistory : []).map((history, index) => (
                       <div 
                         key={history.id}
                         className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors"
