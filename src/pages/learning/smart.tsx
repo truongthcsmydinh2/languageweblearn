@@ -364,13 +364,9 @@ const SmartLearningPage = () => {
 
   // Hàm format ngày tháng
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('vi-VN', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    if (!dateString) return '';
+    // Trả về yyyy-mm-dd để luôn đồng nhất giữa server và client
+    return new Date(dateString).toISOString().slice(0, 10);
   };
 
   return (
@@ -379,10 +375,10 @@ const SmartLearningPage = () => {
         <h1 className="text-3xl font-bold mb-8 text-center">Học thông minh</h1>
         
           {sessionState === SessionState.LOADING && (
-          <div className="flex items-center justify-center min-h-[60vh]">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-200"></div>
-            </div>
-          )}
+        <div className="flex items-center justify-center min-h-[60vh] bg-gray-800">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-200"></div>
+        </div>
+      )}
           
         {error && (
           <div className="bg-error-100 text-error-700 p-4 rounded-lg mb-6">

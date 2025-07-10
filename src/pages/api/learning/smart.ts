@@ -99,24 +99,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Duyệt qua từng từ và kiểm tra ngày ôn tập
     for (const term of terms as any[]) {
+      // Log giá trị thực tế lấy từ database
+      console.log(`TERM ID: ${term.id}, vocab: ${term.vocab}, review_time_en (raw):`, term.review_time_en, ', review_time_vi (raw):', term.review_time_vi);
       // Chuẩn hóa định dạng ngày từ DB để so sánh
       // Format của review_time_en/vi từ DB có thể là yyyy-mm-dd hoặc dạng Date object
       let reviewTimeEn = null;
       let reviewTimeVi = null;
-      
       if (term.review_time_en) {
         if (typeof term.review_time_en === 'string') {
-          reviewTimeEn = term.review_time_en.substring(0, 10);
+          reviewTimeEn = term.review_time_en.slice(0, 10);
         } else {
-          reviewTimeEn = new Date(term.review_time_en).toISOString().slice(0, 10);
+          // Nếu là Date object, cộng thêm 7 tiếng GMT+7 trước khi lấy ngày
+          const date = new Date(term.review_time_en);
+          date.setHours(date.getHours() + 7);
+          reviewTimeEn = date.toISOString().slice(0, 10);
         }
       }
-      
       if (term.review_time_vi) {
         if (typeof term.review_time_vi === 'string') {
-          reviewTimeVi = term.review_time_vi.substring(0, 10);
+          reviewTimeVi = term.review_time_vi.slice(0, 10);
         } else {
-          reviewTimeVi = new Date(term.review_time_vi).toISOString().slice(0, 10);
+          const date = new Date(term.review_time_vi);
+          date.setHours(date.getHours() + 7);
+          reviewTimeVi = date.toISOString().slice(0, 10);
         }
       }
       
@@ -182,28 +187,76 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Nếu không có từ nào cần học hôm nay, tìm ngày gần nhất
     if (learningList.length === 0) {
       const nextLearningInfo = await findNextLearningDate(firebase_uid);
-      
       if (nextLearningInfo) {
+        // Thêm log chi tiết cho ngày gần nhất có ôn tập
+        console.log('--- Ngày gần nhất có ôn tập ---');
+        console.log('Ngày:', nextLearningInfo.nextDate);
+        console.log('Số từ:', nextLearningInfo.totalTerms);
+        // Lấy chi tiết các từ và chiều của ngày gần nhất
+        const [termsNext] = await db.query(
+          `SELECT * FROM terms WHERE firebase_uid = ? AND ((DATE(review_time_en) = ? AND level_en > 0) OR (DATE(review_time_vi) = ? AND level_vi > 0))`,
+          [firebase_uid, nextLearningInfo.nextDate, nextLearningInfo.nextDate]
+        );
+        // Đếm số từ và số lượt học (chiều) thực tế
+        let totalWords = 0;
+        let totalDirections = 0;
+        if (termsNext && (termsNext as any[]).length > 0) {
+          for (const term of termsNext as any[]) {
+            // Chuẩn hóa ngày về yyyy-mm-dd
+            let reviewEn = '';
+            let reviewVi = '';
+            if (term.review_time_en) {
+              if (typeof term.review_time_en === 'string') {
+                reviewEn = term.review_time_en.slice(0, 10);
+              } else {
+                const date = new Date(term.review_time_en);
+                date.setHours(date.getHours() + 7);
+                reviewEn = date.toISOString().slice(0, 10);
+              }
+            }
+            if (term.review_time_vi) {
+              if (typeof term.review_time_vi === 'string') {
+                reviewVi = term.review_time_vi.slice(0, 10);
+              } else {
+                const date = new Date(term.review_time_vi);
+                date.setHours(date.getHours() + 7);
+                reviewVi = date.toISOString().slice(0, 10);
+              }
+            }
+            // Đếm chiều phù hợp
+            let hasDirection = false;
+            if (reviewEn === nextLearningInfo.nextDate && term.level_en > 0) {
+              totalDirections++;
+              hasDirection = true;
+            }
+            if (reviewVi === nextLearningInfo.nextDate && term.level_vi > 0) {
+              totalDirections++;
+              hasDirection = true;
+            }
+            if (hasDirection) totalWords++;
+          }
+        }
+        console.log(`Số từ cần ôn tập: ${totalWords}`);
+        console.log(`Số lượt học (chiều): ${totalDirections}`);
+        // ---
         const nextDate = new Date(nextLearningInfo.nextDate);
         const todayDate = new Date(today);
         const daysDiff = Math.ceil((nextDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24));
-        
         let message = '';
         if (nextLearningInfo.isNewTerms) {
-          message = `Bạn có ${nextLearningInfo.totalTerms} từ mới cần học!`;
+          message = `Bạn có ${totalWords} từ mới cần học!`;
         } else if (daysDiff === 0) {
-          message = `Hôm nay có ${nextLearningInfo.totalTerms} từ cần ôn tập`;
+          message = `Hôm nay có ${totalWords} từ cần ôn tập`;
         } else if (daysDiff === 1) {
-          message = `Ngày mai có ${nextLearningInfo.totalTerms} từ cần ôn tập`;
+          message = `Ngày mai có ${totalDirections} từ cần ôn tập`;
         } else {
-          message = `Sau ${daysDiff} ngày nữa có ${nextLearningInfo.totalTerms} từ cần ôn tập`;
+          message = `Sau ${daysDiff} ngày nữa có ${totalDirections} từ cần ôn tập`;
         }
-
         return res.status(200).json({
           learningList: [],
           termsCount: 0,
           nextLearningDate: nextLearningInfo.nextDate,
-          nextLearningCount: nextLearningInfo.totalTerms,
+          nextLearningCount: totalWords,
           daysUntilNext: daysDiff,
           message: message
         });

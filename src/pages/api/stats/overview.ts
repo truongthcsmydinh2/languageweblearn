@@ -16,6 +16,14 @@ interface LevelStatsResult extends RowDataPacket {
   count: number;
 }
 
+// Hàm lấy ngày hiện tại theo GMT+7
+function getTodayStrGMT7() {
+  const now = new Date();
+  // GMT+7 offset = 7*60 = 420 phút
+  const gmt7 = new Date(now.getTime() + (7 * 60 - now.getTimezoneOffset()) * 60000);
+  return gmt7.toISOString().slice(0, 10);
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -38,10 +46,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       : 0;
 
     // Lấy số từ cần ôn tập hôm nay (dựa trên review_time_en hoặc review_time_vi)
-    const now = new Date();
+    const today = getTodayStrGMT7();
     const [reviewResult] = await db.query<StatsResult[]>(
-      'SELECT COUNT(*) as count FROM terms WHERE (review_time_en < ? OR review_time_vi < ?) AND firebase_uid = ?',
-      [now.getTime(), now.getTime(), firebase_uid]
+      `SELECT COUNT(*) as count FROM terms WHERE ((review_time_en IS NOT NULL AND review_time_en <= ?) OR (review_time_vi IS NOT NULL AND review_time_vi <= ?)) AND firebase_uid = ?`,
+      [today, today, firebase_uid]
     );
     const termsToReview = Array.isArray(reviewResult) && reviewResult.length > 0 
       ? reviewResult[0].count 
