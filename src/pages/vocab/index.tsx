@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Modal from '@/components/Modal';
@@ -20,6 +20,8 @@ interface Term {
   vietnamese?: string;
 }
 
+const PAGE_SIZE = 25;
+
 const VocabListPage: React.FC = () => {
   const [vocabTerms, setVocabTerms] = useState<Term[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,53 +36,64 @@ const VocabListPage: React.FC = () => {
   const [selectedTerms, setSelectedTerms] = useState<Term[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
+  const [vocabList, setVocabList] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const loaderRef = useRef<HTMLDivElement>(null);
+  const [isFirstLoading, setIsFirstLoading] = useState(true);
 
-  // Tải dữ liệu từ vựng
+  // Hàm fetch dữ liệu từ API
+  const fetchVocab = async (reset = false) => {
+    if (reset) setIsFirstLoading(true);
+    setLoadingMore(true);
+    try {
+      const res = await fetch(`/api/vocab?limit=${PAGE_SIZE}&offset=${reset ? 0 : offset}`);
+      const data = await res.json();
+      if (reset) {
+        setVocabList(data.data);
+        setOffset(data.data.length);
+        setHasMore(data.data.length < data.total);
+      } else {
+        setVocabList(prev => [...prev, ...data.data]);
+        setOffset(offset + data.data.length);
+        setHasMore(vocabList.length + data.data.length < data.total);
+      }
+      setTotal(data.total);
+    } catch (e) {
+      setHasMore(false);
+    }
+    setLoadingMore(false);
+    if (reset) setIsFirstLoading(false);
+  };
+
   useEffect(() => {
-    const fetchVocabTerms = async () => {
-      try {
-        setLoading(true);
-        
-        // Kiểm tra người dùng đã đăng nhập chưa
-        if (!user || !user.uid) {
-          console.warn('User not authenticated, redirecting to login');
-          router.push('/auth/signin');
-          return;
-        }
-        
-        console.log('Fetching vocab terms for user:', user.uid);
-        
-        const response = await fetch('/api/vocab', {
-          headers: {
-            'firebase_uid': user.uid
-          }
-        });
-        
-        console.log('API response status:', response.status);
-        
-        if (!response.ok) {
-          throw new Error('Failed to load vocabulary terms');
-        }
-        
-        const data = await response.json();
-        console.log(`Received ${data.length} vocab terms`);
-        
-        setVocabTerms(data);
-      } catch (err) {
-        console.error('Error loading vocabulary terms:', err);
-        setError(err instanceof Error ? err.message : 'An error occurred');
-      } finally {
-        setLoading(false);
+    fetchVocab(true);
+    // eslint-disable-next-line
+  }, []);
+
+  // Infinite scroll: tự động load thêm khi kéo xuống cuối
+  useEffect(() => {
+    if (!hasMore || loadingMore) return;
+    const handleScroll = () => {
+      if (!loaderRef.current) return;
+      const rect = loaderRef.current.getBoundingClientRect();
+      if (rect.top < window.innerHeight) {
+        fetchVocab();
       }
     };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [hasMore, loadingMore, offset]);
 
-    if (user) {
-      fetchVocabTerms();
-    }
-  }, [user, router]);
+  // XÓA TOÀN BỘ useEffect fetchVocabTerms và các state liên quan vocabTerms, setVocabTerms, loading, error, sortBy, searchTerm, v.v. Chỉ giữ lại logic phân trang mới với vocabList, fetchVocab, total, offset, loadingMore, hasMore.
+
+  // Đảm bảo vocabList luôn là mảng
+  const safeVocabList = Array.isArray(vocabList) ? vocabList : [];
 
   // Sắp xếp từ vựng
-  const sortedTerms = [...vocabTerms].sort((a, b) => {
+  const sortedTerms = [...safeVocabList].sort((a, b) => {
     switch (sortBy) {
       case 'newest':
         return new Date(b.time_added).getTime() - new Date(a.time_added).getTime();
@@ -158,10 +171,10 @@ const VocabListPage: React.FC = () => {
         setDeleteConfirmText('');
         
         // Cập nhật danh sách từ vựng bằng cách loại bỏ các từ đã xóa
-        const updatedTerms = vocabTerms.filter(
+        const updatedVocabList = vocabList.filter(
           term => !selectedTerms.some(selected => selected.id === term.id)
         );
-        setVocabTerms(updatedTerms);
+        setVocabList(updatedVocabList);
         setSelectedTerms([]);
 
         alert(`Đã xóa thành công ${result.deletedCount || selectedTerms.length} từ!`);
@@ -290,7 +303,7 @@ const VocabListPage: React.FC = () => {
       if (!response.ok) throw new Error('Lỗi khi reset cấp độ');
       // Cập nhật lại UI
       const now = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-      setVocabTerms(prev => prev.map(term =>
+      setVocabList(prev => prev.map(term =>
         (!termId || term.id === termId)
           ? {
               ...term,
@@ -307,7 +320,7 @@ const VocabListPage: React.FC = () => {
     }
   };
 
-  if (loading) {
+  if (isFirstLoading) {
     return (
       <div className="flex justify-center items-center h-screen bg-gray-800">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-200"></div>
@@ -451,7 +464,7 @@ const VocabListPage: React.FC = () => {
                             body: JSON.stringify({ type: 'all' })
                           });
                           if (!response.ok) throw new Error('Lỗi khi reset tất cả');
-                          setVocabTerms(prev => prev.map(term => ({
+                          setVocabList(prev => prev.map(term => ({
                             ...term,
                             level_en: 0,
                             level_vi: 0,
@@ -575,6 +588,10 @@ const VocabListPage: React.FC = () => {
           </div>
         </div>
       </Modal>
+      <div ref={loaderRef} className="flex justify-center py-6">
+        {loadingMore && <span className="text-gray-400">Đang tải...</span>}
+        {!hasMore && <span className="text-gray-400">Đã tải hết tất cả từ vựng.</span>}
+      </div>
     </div>
   );
 };

@@ -376,9 +376,9 @@ const SmartLearningPage = () => {
         
           {sessionState === SessionState.LOADING && (
         <div className="flex items-center justify-center min-h-[60vh] bg-gray-800">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-200"></div>
-        </div>
-      )}
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-200"></div>
+            </div>
+          )}
           
         {error && (
           <div className="bg-error-100 text-error-700 p-4 rounded-lg mb-6">

@@ -16,6 +16,9 @@ export default async function handler(
   // Lấy tất cả các từ vựng
   if (method === 'GET') {
     try {
+      // Lấy limit và offset từ query
+      const limit = parseInt((req.query.limit as string) || '25', 10);
+      const offset = parseInt((req.query.offset as string) || '0', 10);
       let query = 'SELECT * FROM terms';
       const params = [];
       
@@ -24,10 +27,19 @@ export default async function handler(
         query += ' WHERE firebase_uid = ?';
         params.push(firebase_uid);
       }
-      
-      query += ' ORDER BY created_at DESC';
-      
+      // Nhúng trực tiếp limit/offset vào query (không truyền qua params)
+      query += ` ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`;
       const [rows] = await db.execute(query, params);
+      
+      // Đếm tổng số từ
+      let countQuery = 'SELECT COUNT(*) as total FROM terms';
+      const countParams = [];
+      if (firebase_uid) {
+        countQuery += ' WHERE firebase_uid = ?';
+        countParams.push(firebase_uid);
+      }
+      const [countRows] = await db.execute(countQuery, countParams);
+      const total = Array.isArray(countRows) && countRows.length > 0 ? (countRows as any[])[0].total : 0;
       
       // Thêm các trường english và vietnamese cho tương thích với UI
       const enhancedRows = Array.isArray(rows) ? rows.map((row: any) => {
@@ -64,8 +76,9 @@ export default async function handler(
         };
       }) : [];
       
-      return res.status(200).json(enhancedRows);
+      return res.status(200).json({ total, data: enhancedRows });
     } catch (error) {
+      console.error('Lỗi khi lấy danh sách từ vựng:', error);
       return res.status(500).json({ error: 'Failed to fetch vocab terms' });
     }
   }
