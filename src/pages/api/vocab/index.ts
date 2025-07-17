@@ -19,24 +19,53 @@ export default async function handler(
       // Lấy limit và offset từ query
       const limit = parseInt((req.query.limit as string) || '25', 10);
       const offset = parseInt((req.query.offset as string) || '0', 10);
-      let query = 'SELECT * FROM terms';
+      // Lấy tham số tìm kiếm
+      const search = (req.query.search as string)?.trim();
+      // Thêm tham số min_level
+      const minLevelQuery = req.query.min_level ? parseInt(req.query.min_level as string, 10) : null;
+      let query = 'SELECT *, LEAST(level_en, level_vi) AS min_level FROM terms';
       const params = [];
-      
+      const whereConds = [];
       // Nếu có firebase_uid, chỉ lấy từ vựng của người dùng đó
       if (firebase_uid) {
-        query += ' WHERE firebase_uid = ?';
+        whereConds.push('firebase_uid = ?');
         params.push(firebase_uid);
       }
-      // Nhúng trực tiếp limit/offset vào query (không truyền qua params)
-      query += ` ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`;
+      // Nếu có search, thêm điều kiện tìm kiếm
+      if (search) {
+        whereConds.push('(vocab LIKE ? OR meanings LIKE ?)');
+        params.push(`%${search}%`, `%${search}%`);
+      }
+      // Nếu có min_level, lọc theo min_level
+      if (minLevelQuery !== null && !isNaN(minLevelQuery)) {
+        whereConds.push('LEAST(level_en, level_vi) <= ?');
+        params.push(minLevelQuery);
+      }
+      if (whereConds.length > 0) {
+        query += ' WHERE ' + whereConds.join(' AND ');
+      }
+      // Sắp xếp theo min_level tăng dần, rồi đến created_at
+      query += ` ORDER BY min_level ASC, created_at DESC LIMIT ${limit} OFFSET ${offset}`;
       const [rows] = await db.execute(query, params);
       
-      // Đếm tổng số từ
+      // Đếm tổng số từ (áp dụng cùng điều kiện)
       let countQuery = 'SELECT COUNT(*) as total FROM terms';
       const countParams = [];
+      const countConds = [];
       if (firebase_uid) {
-        countQuery += ' WHERE firebase_uid = ?';
+        countConds.push('firebase_uid = ?');
         countParams.push(firebase_uid);
+      }
+      if (search) {
+        countConds.push('(vocab LIKE ? OR meanings LIKE ?)');
+        countParams.push(`%${search}%`, `%${search}%`);
+      }
+      if (minLevelQuery !== null && !isNaN(minLevelQuery)) {
+        countConds.push('LEAST(level_en, level_vi) <= ?');
+        countParams.push(minLevelQuery);
+      }
+      if (countConds.length > 0) {
+        countQuery += ' WHERE ' + countConds.join(' AND ');
       }
       const [countRows] = await db.execute(countQuery, countParams);
       const total = Array.isArray(countRows) && countRows.length > 0 ? (countRows as any[])[0].total : 0;
@@ -64,6 +93,9 @@ export default async function handler(
         const lastReviewEn = row.last_review_en && row.last_review_en > 0 ? row.last_review_en : null;
         const lastReviewVi = row.last_review_vi && row.last_review_vi > 0 ? row.last_review_vi : null;
         
+        // min_level đã có từ SQL
+        const min_level = row.min_level;
+        
         return {
           ...row,
           english: row.vocab,
@@ -72,7 +104,8 @@ export default async function handler(
           review_time_en: reviewTimeEn,
           review_time_vi: reviewTimeVi,
           last_review_en: lastReviewEn,
-          last_review_vi: lastReviewVi
+          last_review_vi: lastReviewVi,
+          min_level
         };
       }) : [];
       
@@ -85,6 +118,7 @@ export default async function handler(
 
   // Thêm một từ vựng mới
   if (method === 'POST') {
+    console.log('📥 POST /api/vocab body:', body);
     // Xử lý cả hai trường hợp: { vocab, meaning, ... } và { term: { vocab, meaning, ... } }
     const data = body.term || body;
     const { vocab, meaning, example, notes, set_id, timeAdded, part_of_speech } = data;
@@ -161,7 +195,11 @@ export default async function handler(
       }
       
       // Nếu từ chưa tồn tại, thêm mới với thời gian review hợp lệ
+      function toMySQLDateOnly(ts: number) {
+        return new Date(ts).toISOString().slice(0, 10); // chỉ lấy yyyy-mm-dd
+      }
       const now = Date.now();
+      // const reviewDate = toMySQLDateOnly(now); // Không dùng nữa
       const [result] = await db.query(
         `INSERT INTO terms (
            vocab, meanings, example_sentence, notes, 
@@ -176,10 +214,10 @@ export default async function handler(
           JSON.stringify([meaning]),
           example || null,
           notes || null,
-          now, // review_time_en
-          now, // review_time_vi
-          now, // last_review_en
-          now, // last_review_vi
+          now, // review_time_en (BIGINT)
+          now, // review_time_vi (BIGINT)
+          now,        // last_review_en (BIGINT)
+          now,        // last_review_vi (BIGINT)
           firebase_uid,
           part_of_speech || null
         ]
@@ -197,7 +235,8 @@ export default async function handler(
         last_review_vi: now
       });
     } catch (error) {
-      return res.status(500).json({ error: 'Failed to add new vocab' });
+      console.error('❌ Lỗi khi thêm từ vựng:', error);
+      return res.status(500).json({ error: 'Internal server error', detail: error instanceof Error ? error.message : error });
     }
   }
 }

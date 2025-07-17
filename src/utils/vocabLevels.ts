@@ -12,43 +12,52 @@ export const VOCAB_LEVELS = [
   { name: 'Cấp độ 10', value: 10 }
 ];
 
-// Tính thời gian ôn tập tiếp theo dựa trên level hiện tại
-export const calculateNextReviewTime = (currentLevel: number): Date => {
+// Tính thời gian ôn tập tiếp theo dựa trên level hiện tại (sử dụng múi giờ Việt Nam)
+export const calculateNextReviewTime = (currentLevel: number): string => {
   const now = new Date();
-  const nextDate = new Date(now);
+  // Lấy múi giờ hiện tại của server
+  const serverTimezoneOffset = now.getTimezoneOffset(); // phút
+  // Múi giờ Việt Nam là GMT+7, tức là -420 phút so với UTC
+  const vietnamTimezoneOffset = -420; // phút
+  // Tính chênh lệch múi giờ
+  const timezoneDiff = vietnamTimezoneOffset - serverTimezoneOffset;
+  
+  // Tạo ngày theo múi giờ Việt Nam
+  const vietnamTime = new Date(now.getTime() + timezoneDiff * 60 * 1000);
+  const nextDate = new Date(vietnamTime);
 
   switch (currentLevel) {
     case 0: // Ngay lập tức hoặc trong ngày
-      return now;
+      return vietnamTime.toISOString().slice(0, 10);
     case 1: // 1 ngày sau
-      nextDate.setDate(now.getDate() + 1);
-      return nextDate;
+      nextDate.setDate(vietnamTime.getDate() + 1);
+      return nextDate.toISOString().slice(0, 10);
     case 2: // 2 ngày sau
-      nextDate.setDate(now.getDate() + 2);
-      return nextDate;
+      nextDate.setDate(vietnamTime.getDate() + 2);
+      return nextDate.toISOString().slice(0, 10);
     case 3: // 4 ngày sau
-      nextDate.setDate(now.getDate() + 4);
-      return nextDate;
+      nextDate.setDate(vietnamTime.getDate() + 4);
+      return nextDate.toISOString().slice(0, 10);
     case 4: // 7 ngày sau
-      nextDate.setDate(now.getDate() + 7);
-      return nextDate;
+      nextDate.setDate(vietnamTime.getDate() + 7);
+      return nextDate.toISOString().slice(0, 10);
     case 5: // 14 ngày sau
-      nextDate.setDate(now.getDate() + 14);
-      return nextDate;
+      nextDate.setDate(vietnamTime.getDate() + 14);
+      return nextDate.toISOString().slice(0, 10);
     case 6: // 1 tháng sau
-      nextDate.setMonth(now.getMonth() + 1);
-      return nextDate;
+      nextDate.setMonth(vietnamTime.getMonth() + 1);
+      return nextDate.toISOString().slice(0, 10);
     case 7: // 2 tháng sau
-      nextDate.setMonth(now.getMonth() + 2);
-      return nextDate;
+      nextDate.setMonth(vietnamTime.getMonth() + 2);
+      return nextDate.toISOString().slice(0, 10);
     case 8: // 4 tháng sau
-      nextDate.setMonth(now.getMonth() + 4);
-      return nextDate;
+      nextDate.setMonth(vietnamTime.getMonth() + 4);
+      return nextDate.toISOString().slice(0, 10);
     case 9: // 6 tháng sau
-      nextDate.setMonth(now.getMonth() + 6);
-      return nextDate;
+      nextDate.setMonth(vietnamTime.getMonth() + 6);
+      return nextDate.toISOString().slice(0, 10);
     default:
-      return now;
+      return vietnamTime.toISOString().slice(0, 10);
   }
 };
 

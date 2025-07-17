@@ -16,12 +16,13 @@ interface Passage {
 interface Question {
   id: number;
   question_text: string;
-  question_type: 'multiple_choice' | 'true_false_not_given' | 'yes_no_not_given' | 'matching_headings' | 'matching_information' | 'matching_features' | 'matching_sentence_endings' | 'sentence_completion' | 'summary_completion' | 'note_completion' | 'table_completion' | 'flow_chart_completion' | 'diagram_labelling' | 'short_answer_questions';
+  question_type: 'multiple_choice' | 'multiple_choice_5' | 'multiple_choice_group' | 'true_false_not_given' | 'yes_no_not_given' | 'matching_headings' | 'matching_information' | 'matching_features' | 'matching_sentence_endings' | 'sentence_completion' | 'summary_completion' | 'note_completion' | 'table_completion' | 'flow_chart_completion' | 'diagram_labelling' | 'short_answer_questions';
   options?: string[];
   correct_answer: string;
   explanation?: string;
   note?: string;
   order_index: number;
+  group_id?: string; // Để nhóm các câu hỏi cùng loại
 }
 
 // Thêm interface cho đề IELTS Reading hoàn chỉnh
@@ -55,6 +56,44 @@ interface Group {
   }[];
 }
 
+// Interface cho cấu trúc JSON mới
+interface NewIeltsReadingData {
+  metadata: {
+    id: number;
+    title: string;
+    link: string;
+    slug: string;
+  };
+  content: {
+    readingPassage: {
+      title: string;
+      paragraphs: string[];
+    };
+    questionGroups: {
+      type: string;
+      range: string;
+      instructions: string;
+      questions: {
+        id: number;
+        content: string;
+        answer: string;
+        guide: string;
+        options?: {
+          A?: string;
+          B?: string;
+          C?: string;
+          D?: string;
+          E?: string;
+        };
+      }[];
+    }[];
+  };
+  summary: {
+    question_types: string[];
+    total_questions: number;
+  };
+}
+
 const IeltsReadingAdminPage = () => {
   const router = useRouter();
   const { user } = useAuth();
@@ -80,7 +119,7 @@ const IeltsReadingAdminPage = () => {
 
   const [questionForm, setQuestionForm] = useState({
     question_text: '',
-    question_type: 'multiple_choice' as 'multiple_choice' | 'true_false_not_given' | 'yes_no_not_given' | 'matching_headings' | 'matching_information' | 'matching_features' | 'matching_sentence_endings' | 'sentence_completion' | 'summary_completion' | 'note_completion' | 'table_completion' | 'flow_chart_completion' | 'diagram_labelling' | 'short_answer_questions',
+    question_type: 'multiple_choice' as 'multiple_choice' | 'multiple_choice_5' | 'multiple_choice_group' | 'true_false_not_given' | 'yes_no_not_given' | 'matching_headings' | 'matching_information' | 'matching_features' | 'matching_sentence_endings' | 'sentence_completion' | 'summary_completion' | 'note_completion' | 'table_completion' | 'flow_chart_completion' | 'diagram_labelling' | 'short_answer_questions',
     options: ['', '', '', ''],
     note: '',
     order_index: 1
@@ -94,7 +133,7 @@ const IeltsReadingAdminPage = () => {
     questions: [
       {
     question_text: '',
-    question_type: 'multiple_choice' as 'multiple_choice' | 'true_false' | 'fill_blank' | 'matching',
+    question_type: 'multiple_choice' as 'multiple_choice' | 'multiple_choice_5' | 'multiple_choice_group' | 'true_false' | 'fill_blank' | 'matching',
     options: ['', '', '', ''],
     order_index: 1
       }
@@ -135,6 +174,14 @@ const IeltsReadingAdminPage = () => {
   // Thêm state cho việc biên dịch đáp án Task 3
   const [isGeneratingAnswers, setIsGeneratingAnswers] = useState(false);
   const [rawAnswers, setRawAnswers] = useState('');
+
+  // State cho import từ JSON/URL
+  const [showImportForm, setShowImportForm] = useState(false);
+  const [importType, setImportType] = useState<'file' | 'url'>('file');
+  const [importUrl, setImportUrl] = useState('');
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importPreview, setImportPreview] = useState<any>(null);
 
   useEffect(() => {
     // Bỏ qua việc kiểm tra user và quyền admin
@@ -335,7 +382,7 @@ const IeltsReadingAdminPage = () => {
   };
 
   // Hàm tự động phân loại câu hỏi
-  const autoClassifyQuestion = (questionText: string): 'multiple_choice' | 'true_false_not_given' | 'yes_no_not_given' | 'matching_headings' | 'matching_information' | 'matching_features' | 'matching_sentence_endings' | 'sentence_completion' | 'summary_completion' | 'note_completion' | 'table_completion' | 'flow_chart_completion' | 'diagram_labelling' | 'short_answer_questions' => {
+  const autoClassifyQuestion = (questionText: string): 'multiple_choice' | 'multiple_choice_5' | 'multiple_choice_group' | 'true_false_not_given' | 'yes_no_not_given' | 'matching_headings' | 'matching_information' | 'matching_features' | 'matching_sentence_endings' | 'sentence_completion' | 'summary_completion' | 'note_completion' | 'table_completion' | 'flow_chart_completion' | 'diagram_labelling' | 'short_answer_questions' => {
     const text = questionText.toLowerCase();
 
     // Kiểm tra câu hỏi điền từ
@@ -382,6 +429,12 @@ const IeltsReadingAdminPage = () => {
     } else if (questionType === 'multiple_choice') {
       // Tạo options mặc định cho trắc nghiệm
       return ['A', 'B', 'C', 'D'];
+    } else if (questionType === 'multiple_choice_5') {
+      // Tạo options cho trắc nghiệm 5 đáp án
+      return ['A', 'B', 'C', 'D', 'E'];
+    } else if (questionType === 'multiple_choice_group') {
+      // Tạo options cho nhóm câu hỏi trắc nghiệm (5 đáp án, 2 câu hỏi)
+      return ['A', 'B', 'C', 'D', 'E'];
     }
     return [];
   };
@@ -476,7 +529,9 @@ const IeltsReadingAdminPage = () => {
     // Tạo danh sách câu hỏi trống
     const questions = Array.from({ length: numQuestions }, (_, i) => ({
       questionText: '',
-      options: questionType === 'multiple_choice' ? ['', '', '', ''] : [],
+      options: questionType === 'multiple_choice' ? ['', '', '', ''] : 
+               questionType === 'multiple_choice_5' ? ['', '', '', '', ''] :
+               questionType === 'multiple_choice_group' ? ['', '', '', '', ''] : [],
       explanation: '',
       note: '',
       orderIndex: startQuestion + i
@@ -629,8 +684,8 @@ const IeltsReadingAdminPage = () => {
     e.preventDefault();
     if (!selectedPassage) return;
 
-    let finalType: 'multiple_choice' | 'true_false_not_given' | 'yes_no_not_given' | 'matching_headings' | 'matching_information' | 'matching_features' | 'matching_sentence_endings' | 'sentence_completion' | 'summary_completion' | 'note_completion' | 'table_completion' | 'flow_chart_completion' | 'diagram_labelling' | 'short_answer_questions';
-    if (questionForm.question_type === 'multiple_choice' || questionForm.question_type === 'true_false_not_given' || questionForm.question_type === 'yes_no_not_given' || questionForm.question_type === 'matching_headings' || questionForm.question_type === 'matching_information' || questionForm.question_type === 'matching_features' || questionForm.question_type === 'matching_sentence_endings' || questionForm.question_type === 'sentence_completion' || questionForm.question_type === 'summary_completion' || questionForm.question_type === 'note_completion' || questionForm.question_type === 'table_completion' || questionForm.question_type === 'flow_chart_completion' || questionForm.question_type === 'diagram_labelling' || questionForm.question_type === 'short_answer_questions') {
+    let finalType: 'multiple_choice' | 'multiple_choice_5' | 'multiple_choice_group' | 'true_false_not_given' | 'yes_no_not_given' | 'matching_headings' | 'matching_information' | 'matching_features' | 'matching_sentence_endings' | 'sentence_completion' | 'summary_completion' | 'note_completion' | 'table_completion' | 'flow_chart_completion' | 'diagram_labelling' | 'short_answer_questions';
+    if (questionForm.question_type === 'multiple_choice' || questionForm.question_type === 'multiple_choice_5' || questionForm.question_type === 'multiple_choice_group' || questionForm.question_type === 'true_false_not_given' || questionForm.question_type === 'yes_no_not_given' || questionForm.question_type === 'matching_headings' || questionForm.question_type === 'matching_information' || questionForm.question_type === 'matching_features' || questionForm.question_type === 'matching_sentence_endings' || questionForm.question_type === 'sentence_completion' || questionForm.question_type === 'summary_completion' || questionForm.question_type === 'note_completion' || questionForm.question_type === 'table_completion' || questionForm.question_type === 'flow_chart_completion' || questionForm.question_type === 'diagram_labelling' || questionForm.question_type === 'short_answer_questions') {
       finalType = questionForm.question_type;
     } else {
       finalType = autoClassifyQuestion(questionForm.question_text);
@@ -773,6 +828,132 @@ const IeltsReadingAdminPage = () => {
     }));
   };
 
+  // Function xử lý import từ file JSON
+  const handleFileImport = async (file: File) => {
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      setImportPreview(data);
+      return data;
+    } catch (error) {
+      console.error('Lỗi khi đọc file JSON:', error);
+      alert('Lỗi khi đọc file JSON. Vui lòng kiểm tra định dạng file.');
+      return null;
+    }
+  };
+
+  // Function xử lý import từ URL
+  const handleUrlImport = async (url: string) => {
+    try {
+      // Kiểm tra xem có phải là URL WordPress không
+      if (url.includes('izone.edu.vn') || url.includes('wordpress') || url.includes('wp-json')) {
+        // Sử dụng endpoint mới để parse HTML từ URL
+        const response = await fetch('/api/admin/ielts-reading/import-from-url', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          alert(`Import thành công! Đã tạo bài đọc với ID: ${result.passageId}`);
+          setShowImportForm(false);
+          setImportUrl('');
+          fetchPassages(); // Refresh danh sách
+          return result;
+        } else {
+          const error = await response.json();
+          throw new Error(error.message || 'Lỗi khi import từ URL');
+        }
+      } else {
+        // Xử lý URL JSON thông thường
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        setImportPreview(data);
+        return data;
+      }
+    } catch (error) {
+      console.error('Lỗi khi tải dữ liệu từ URL:', error);
+      alert(`Lỗi khi tải dữ liệu từ URL: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return null;
+    }
+  };
+
+  // Function xử lý preview import
+  const handleImportPreview = async () => {
+    setIsImporting(true);
+    try {
+      let data = null;
+      
+      if (importType === 'file' && importFile) {
+        data = await handleFileImport(importFile);
+      } else if (importType === 'url' && importUrl) {
+        data = await handleUrlImport(importUrl);
+      }
+      
+      if (data) {
+        setImportPreview(data);
+      }
+    } catch (error) {
+      console.error('Lỗi khi preview import:', error);
+      alert('Lỗi khi xử lý dữ liệu import.');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Function xử lý import dữ liệu vào hệ thống
+  const handleImportData = async () => {
+    if (!importPreview) {
+      alert('Vui lòng preview dữ liệu trước khi import.');
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      // Gửi dữ liệu đến API để import
+      const response = await fetch('/api/admin/ielts-reading/import', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(importPreview)
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        alert(`Import thành công! Đã tạo ${result.passagesCreated} bài đọc và ${result.questionsCreated} câu hỏi.`);
+        setShowImportForm(false);
+        setImportPreview(null);
+        setImportFile(null);
+        setImportUrl('');
+        fetchPassages(); // Refresh danh sách
+      } else {
+        const error = await response.json();
+        alert(`Lỗi khi import: ${error.message}`);
+      }
+    } catch (error) {
+      console.error('Lỗi khi import dữ liệu:', error);
+      alert('Lỗi khi import dữ liệu. Vui lòng thử lại.');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Function xử lý thay đổi file
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImportFile(file);
+      setImportPreview(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen bg-gray-800">
@@ -787,6 +968,12 @@ const IeltsReadingAdminPage = () => {
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-50">Quản lý IELTS Reading</h1>
           <div className="flex space-x-4">
+            <button
+              onClick={() => setShowImportForm(true)}
+              className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold"
+            >
+              Import từ JSON/URL
+            </button>
             <button
               onClick={() => setShowIeltsTestForm(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold"
@@ -921,7 +1108,27 @@ const IeltsReadingAdminPage = () => {
                       <div className="flex-1">
                         <p className="text-gray-200 mb-2">{question.question_text}</p>
                         <div className="flex items-center space-x-4 text-sm text-gray-400">
-                          <span>{question.question_type}</span>
+                          <span>{(() => {
+                                                     const typeMap: {[key: string]: string} = {
+                             'multiple_choice': 'Trắc nghiệm (4 đáp án)',
+                             'multiple_choice_5': 'Trắc nghiệm (5 đáp án, 2 đáp án đúng)',
+                             'multiple_choice_group': 'Nhóm trắc nghiệm (5 đáp án, 2 câu hỏi)',
+                             'true_false_not_given': 'True/False/Not Given',
+                             'yes_no_not_given': 'Yes/No/Not Given',
+                             'matching_headings': 'Matching Headings',
+                             'matching_information': 'Matching Information',
+                             'matching_features': 'Matching Features',
+                             'matching_sentence_endings': 'Matching Sentence Endings',
+                             'sentence_completion': 'Sentence Completion',
+                             'summary_completion': 'Summary Completion',
+                             'note_completion': 'Note Completion',
+                             'table_completion': 'Table Completion',
+                             'flow_chart_completion': 'Flow-chart Completion',
+                             'diagram_labelling': 'Diagram Labelling',
+                             'short_answer_questions': 'Short-Answer Questions'
+                           };
+                          return typeMap[question.question_type] || question.question_type;
+                        })()}</span>
                           <span>Thứ tự: {question.order_index}</span>
                         </div>
                       </div>
@@ -1255,10 +1462,26 @@ const IeltsReadingAdminPage = () => {
                     <label className="block text-gray-200 mb-2">Loại câu hỏi</label>
                     <select
                       value={questionForm.question_type}
-                      onChange={(e) => setQuestionForm({...questionForm, question_type: e.target.value as any})}
+                      onChange={(e) => {
+                        const newType = e.target.value as any;
+                        let newOptions = questionForm.options;
+                        
+                        // Tự động thay đổi số lượng options theo loại câu hỏi
+                        if (newType === 'multiple_choice') {
+                          newOptions = ['', '', '', ''];
+                        } else if (newType === 'multiple_choice_5') {
+                          newOptions = ['', '', '', '', ''];
+                        } else if (newType === 'multiple_choice_group') {
+                          newOptions = ['', '', '', '', ''];
+                        }
+                        
+                        setQuestionForm({...questionForm, question_type: newType, options: newOptions});
+                      }}
                       className="w-full p-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-200"
                     >
-                      <option value="multiple_choice">Trắc nghiệm</option>
+                      <option value="multiple_choice">Trắc nghiệm (4 đáp án)</option>
+                      <option value="multiple_choice_5">Trắc nghiệm (5 đáp án, 2 đáp án đúng)</option>
+                      <option value="multiple_choice_group">Nhóm trắc nghiệm (5 đáp án, 2 câu hỏi)</option>
                       <option value="true_false_not_given">True/False/Not Given</option>
                       <option value="yes_no_not_given">Yes/No/Not Given</option>
                       <option value="matching_headings">Matching Headings</option>
@@ -1287,6 +1510,39 @@ const IeltsReadingAdminPage = () => {
                     />
                   </div>
                 </div>
+
+                {/* Hiển thị options cho câu hỏi trắc nghiệm */}
+                {(questionForm.question_type === 'multiple_choice' || questionForm.question_type === 'multiple_choice_5' || questionForm.question_type === 'multiple_choice_group') && (
+                  <div>
+                    <label className="block text-gray-200 mb-2">Các lựa chọn</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {questionForm.options.map((option, index) => (
+                        <input
+                          key={index}
+                          type="text"
+                          value={option}
+                          onChange={(e) => {
+                            const newOptions = [...questionForm.options];
+                            newOptions[index] = e.target.value;
+                            setQuestionForm({...questionForm, options: newOptions});
+                          }}
+                          className="p-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-200"
+                          placeholder={`Tùy chọn ${String.fromCharCode(65 + index)}`}
+                        />
+                      ))}
+                    </div>
+                    {questionForm.question_type === 'multiple_choice_5' && (
+                      <div className="mt-2 text-sm text-yellow-400">
+                        ⚠️ Loại câu hỏi này có 5 đáp án và 2 đáp án đúng. Hãy nhập đáp án đúng dưới dạng "A,B" (ví dụ: "A,C")
+                      </div>
+                    )}
+                    {questionForm.question_type === 'multiple_choice_group' && (
+                      <div className="mt-2 text-sm text-blue-400">
+                        ℹ️ Loại câu hỏi này có 5 đáp án chung cho 2 câu hỏi. Mỗi câu hỏi chọn 1 đáp án. Hãy nhập đáp án đúng dưới dạng "A" cho câu 1, "B" cho câu 2
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-gray-200 mb-2">Note (tùy chọn)</label>
@@ -1501,7 +1757,7 @@ const IeltsReadingAdminPage = () => {
                                         placeholder="Nhập nội dung câu hỏi..."
                                         required
                                       />
-                                      {group.questionType === 'multiple_choice' && question.options && (
+                                      {(group.questionType === 'multiple_choice' || group.questionType === 'multiple_choice_5' || group.questionType === 'multiple_choice_group') && question.options && (
                                         <div className="grid grid-cols-2 gap-2">
                                           {question.options.map((option, optionIndex) => (
                                             <input
@@ -1623,7 +1879,9 @@ const IeltsReadingAdminPage = () => {
                     onChange={(e) => setNewGroupForm({...newGroupForm, questionType: e.target.value})}
                     className="w-full p-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-200"
                   >
-                    <option value="multiple_choice">Multiple Choice</option>
+                    <option value="multiple_choice">Multiple Choice (4 đáp án)</option>
+                    <option value="multiple_choice_5">Multiple Choice (5 đáp án, 2 đáp án đúng)</option>
+                    <option value="multiple_choice_group">Multiple Choice Group (5 đáp án, 2 câu hỏi)</option>
                     <option value="true_false_not_given">True/False/Not Given</option>
                     <option value="yes_no_not_given">Yes/No/Not Given</option>
                     <option value="matching_headings">Matching Headings</option>
@@ -1728,6 +1986,229 @@ const IeltsReadingAdminPage = () => {
                     className="bg-gray-600 hover:bg-gray-500 text-gray-200 px-6 py-3 rounded-lg"
                   >
                     Hủy
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Import từ JSON/URL */}
+        {showImportForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-gray-700 rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+              <h2 className="text-xl font-bold text-gray-50 mb-4">
+                Import từ JSON/URL
+              </h2>
+              
+              <div className="space-y-6">
+                {/* Chọn loại import */}
+                <div>
+                  <label className="block text-gray-200 mb-2">Chọn loại import:</label>
+                  <div className="flex space-x-4">
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        value="file"
+                        checked={importType === 'file'}
+                        onChange={(e) => setImportType(e.target.value as 'file' | 'url')}
+                        className="mr-2"
+                      />
+                      <span className="text-gray-200">File JSON</span>
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        value="url"
+                        checked={importType === 'url'}
+                        onChange={(e) => setImportType(e.target.value as 'file' | 'url')}
+                        className="mr-2"
+                      />
+                      <span className="text-gray-200">URL</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Input cho file hoặc URL */}
+                {importType === 'file' ? (
+                  <div>
+                    <label className="block text-gray-200 mb-2">Chọn file JSON:</label>
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={handleFileChange}
+                      className="w-full p-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-200"
+                    />
+                    {importFile && (
+                      <p className="text-green-400 text-sm mt-2">
+                        Đã chọn: {importFile.name}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-gray-200 mb-2">Nhập URL:</label>
+                    <input
+                      type="url"
+                      value={importUrl}
+                      onChange={(e) => setImportUrl(e.target.value)}
+                      placeholder="https://www.izone.edu.vn/luyen-thi-ielts/giai-de-cam-19-the-pirates-of-the-ancient-mediterranean/"
+                      className="w-full p-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-200"
+                    />
+                  </div>
+                )}
+
+                {/* Nút Preview */}
+                <div>
+                  <button
+                    onClick={handleImportPreview}
+                    disabled={isImporting || (importType === 'file' && !importFile) || (importType === 'url' && !importUrl)}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white px-6 py-3 rounded-lg"
+                  >
+                    {isImporting ? 'Đang xử lý...' : 'Preview dữ liệu'}
+                  </button>
+                </div>
+
+                {/* Preview dữ liệu */}
+                {importPreview && (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-200">Preview dữ liệu:</h3>
+                    <div className="bg-gray-800 rounded-lg p-4 max-h-96 overflow-y-auto">
+                      <pre className="text-gray-300 text-sm whitespace-pre-wrap">
+                        {JSON.stringify(importPreview, null, 2)}
+                      </pre>
+                    </div>
+                    
+                    {/* Thông tin tóm tắt */}
+                    <div className="bg-gray-800 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-200 mb-2">Thông tin tóm tắt:</h4>
+                      <div className="text-gray-300 text-sm space-y-1">
+                        {/* Cấu trúc JSON mới */}
+                        {importPreview.metadata && importPreview.content && (
+                          <>
+                            <p><strong>Tiêu đề:</strong> {importPreview.metadata.title}</p>
+                            <p><strong>ID:</strong> {importPreview.metadata.id}</p>
+                            <p><strong>Link:</strong> {importPreview.metadata.link}</p>
+                            {importPreview.content.readingPassage && (
+                              <p><strong>Bài đọc:</strong> {importPreview.content.readingPassage.title}</p>
+                            )}
+                            {importPreview.content.questionGroups && (
+                              <p><strong>Số nhóm câu hỏi:</strong> {importPreview.content.questionGroups.length}</p>
+                            )}
+                            {importPreview.summary && (
+                              <>
+                                <p><strong>Tổng số câu hỏi:</strong> {importPreview.summary.total_questions}</p>
+                                <p><strong>Loại câu hỏi:</strong> {importPreview.summary.question_types?.join(', ')}</p>
+                              </>
+                            )}
+                            {importPreview.content.questionGroups && importPreview.content.questionGroups.length > 0 && (
+                              <div>
+                                <p><strong>Chi tiết nhóm câu hỏi:</strong></p>
+                                {importPreview.content.questionGroups.map((group: any, index: number) => (
+                                  <div key={index} className="ml-4 text-gray-400">
+                                    <p>• Nhóm {index + 1} ({group.type}): {group.range} - {group.questions?.length || 0} câu hỏi</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        )}
+                        
+                        {/* Cấu trúc JSON cũ */}
+                        {!importPreview.metadata && importPreview.title && (
+                          <p><strong>Tiêu đề:</strong> {
+                            typeof importPreview.title === 'object' && importPreview.title.rendered 
+                              ? importPreview.title.rendered 
+                              : importPreview.title
+                          }</p>
+                        )}
+                        {!importPreview.metadata && importPreview.description && (
+                          <p><strong>Mô tả:</strong> {
+                            typeof importPreview.description === 'object' && importPreview.description.rendered 
+                              ? importPreview.description.rendered 
+                              : importPreview.description
+                          }</p>
+                        )}
+                        {!importPreview.metadata && importPreview.passages && (
+                          <p><strong>Số bài đọc:</strong> {importPreview.passages.length}</p>
+                        )}
+                        {!importPreview.metadata && importPreview.all_answers && (
+                          <p><strong>Số câu hỏi:</strong> {importPreview.all_answers.length}</p>
+                        )}
+                        {!importPreview.metadata && importPreview.passages && importPreview.passages.length > 0 && (
+                          <div>
+                            <p><strong>Chi tiết bài đọc:</strong></p>
+                            {importPreview.passages.map((passage: any, index: number) => (
+                              <div key={index} className="ml-4 text-gray-400">
+                                <p>• Bài {index + 1}: {
+                                  typeof passage.title === 'object' && passage.title.rendered 
+                                    ? passage.title.rendered 
+                                    : passage.title
+                                }</p>
+                                {passage.groups && (
+                                  <p className="ml-4">- {passage.groups.length} nhóm câu hỏi</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Nút Import */}
+                    <div>
+                      <button
+                        onClick={handleImportData}
+                        disabled={isImporting}
+                        className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white px-6 py-3 rounded-lg"
+                      >
+                        {isImporting ? 'Đang import...' : 'Import vào hệ thống'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Hướng dẫn */}
+                <div className="bg-blue-900 rounded-lg p-4">
+                  <h4 className="font-semibold text-blue-200 mb-2">Hướng dẫn sử dụng:</h4>
+                  <div className="text-blue-100 text-sm space-y-2">
+                    <p><strong>Định dạng JSON hỗ trợ:</strong></p>
+                    <ul className="list-disc list-inside ml-4 space-y-1">
+                      <li><strong>Cấu trúc JSON mới:</strong> Với metadata, content.readingPassage, content.questionGroups, summary</li>
+                      <li>File JSON từ izone.edu.vn hoặc các nguồn tương tự</li>
+                      <li>File JSON có cấu trúc IELTS Reading test</li>
+                      <li>URL trả về JSON data</li>
+                    </ul>
+                    <p><strong>Cấu trúc JSON mới hỗ trợ:</strong></p>
+                    <ul className="list-disc list-inside ml-4 space-y-1">
+                      <li>metadata: thông tin bài đọc (id, title, link, slug)</li>
+                      <li>content.readingPassage: bài đọc với title và paragraphs</li>
+                      <li>content.questionGroups: các nhóm câu hỏi với type, range, instructions, questions</li>
+                      <li>summary: tóm tắt loại câu hỏi và tổng số câu hỏi</li>
+                    </ul>
+                    <p><strong>Import từ URL WordPress:</strong></p>
+                    <ul className="list-disc list-inside ml-4 space-y-1">
+                      <li>Hỗ trợ URL từ izone.edu.vn, wordpress.com, hoặc các trang WordPress khác</li>
+                      <li>Hệ thống sẽ tự động parse HTML và trích xuất bài đọc, câu hỏi</li>
+                      <li>Không cần file JSON, chỉ cần URL trang web</li>
+                      <li>Ví dụ: https://www.izone.edu.vn/luyen-thi-ielts/giai-de-cam-19-the-pirates-of-the-ancient-mediterranean/</li>
+                    </ul>
+                    <p><strong>Lưu ý:</strong> Hệ thống sẽ tự động chuyển đổi dữ liệu sang định dạng phù hợp và hỗ trợ cả cấu trúc JSON cũ và mới.</p>
+                  </div>
+                </div>
+
+                {/* Nút đóng */}
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => {
+                      setShowImportForm(false);
+                      setImportPreview(null);
+                      setImportFile(null);
+                      setImportUrl('');
+                    }}
+                    className="bg-gray-600 hover:bg-gray-500 text-gray-200 px-6 py-3 rounded-lg"
+                  >
+                    Đóng
                   </button>
                 </div>
               </div>

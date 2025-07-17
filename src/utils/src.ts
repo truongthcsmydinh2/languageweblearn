@@ -26,30 +26,48 @@ export function calculateMemoryStrength(
 }
 
 /**
- * Tính toán khoảng thời gian cho lần ôn tập tiếp theo
+ * Tính toán khoảng thời gian cho lần ôn tập tiếp theo (sử dụng múi giờ Việt Nam)
  * @param memoryStrength Độ mạnh ghi nhớ (0-5)
- * @returns Ngày giờ ôn tập tiếp theo
+ * @returns Ngày ôn tập tiếp theo dạng yyyy-mm-dd
  */
-export function calculateNextReviewDate(memoryStrength: number): Date {
+export function calculateNextReviewDate(memoryStrength: number): string {
   const now = new Date();
+  // Lấy múi giờ hiện tại của server
+  const serverTimezoneOffset = now.getTimezoneOffset(); // phút
+  // Múi giờ Việt Nam là GMT+7, tức là -420 phút so với UTC
+  const vietnamTimezoneOffset = -420; // phút
+  // Tính chênh lệch múi giờ
+  const timezoneDiff = vietnamTimezoneOffset - serverTimezoneOffset;
+  
+  // Tạo ngày theo múi giờ Việt Nam
+  const vietnamTime = new Date(now.getTime() + timezoneDiff * 60 * 1000);
   
   // Dựa trên độ mạnh ghi nhớ, xác định khoảng thời gian
+  let nextDate: Date;
   switch (memoryStrength) {
     case 0: // Rất yếu: 4 giờ sau
-      return new Date(now.getTime() + 4 * 60 * 60 * 1000);
+      nextDate = new Date(vietnamTime.getTime() + 4 * 60 * 60 * 1000);
+      break;
     case 1: // Yếu: 1 ngày sau
-      return new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      nextDate = new Date(vietnamTime.getTime() + 24 * 60 * 60 * 1000);
+      break;
     case 2: // Trung bình thấp: 3 ngày sau
-      return new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+      nextDate = new Date(vietnamTime.getTime() + 3 * 24 * 60 * 60 * 1000);
+      break;
     case 3: // Trung bình: 1 tuần sau
-      return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      nextDate = new Date(vietnamTime.getTime() + 7 * 24 * 60 * 60 * 1000);
+      break;
     case 4: // Tốt: 2 tuần sau
-      return new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+      nextDate = new Date(vietnamTime.getTime() + 14 * 24 * 60 * 60 * 1000);
+      break;
     case 5: // Rất tốt: 1 tháng sau
-      return new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      nextDate = new Date(vietnamTime.getTime() + 30 * 24 * 60 * 60 * 1000);
+      break;
     default:
-      return new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      nextDate = new Date(vietnamTime.getTime() + 24 * 60 * 60 * 1000);
   }
+  
+  return nextDate.toISOString().slice(0, 10);
 }
 
 /**
@@ -81,17 +99,26 @@ export function evaluatePerformance(
 }
 
 /**
- * Kiểm tra xem từ vựng có đến hạn ôn tập không
- * @param nextReviewDate Ngày giờ ôn tập tiếp theo
+ * Kiểm tra xem từ vựng có đến hạn ôn tập không (sử dụng múi giờ Việt Nam)
+ * @param nextReviewDate Ngày ôn tập tiếp theo dạng yyyy-mm-dd
  * @returns Boolean cho biết từ đã đến hạn ôn tập hay chưa
  */
 export function isDue(nextReviewDate: string | null): boolean {
   // Nếu không có ngày ôn tập tiếp theo, coi như đến hạn
   if (!nextReviewDate) return true;
   
-  const now = new Date();
-  const reviewDate = new Date(nextReviewDate);
+  const today = new Date();
+  // Lấy múi giờ hiện tại của server
+  const serverTimezoneOffset = today.getTimezoneOffset(); // phút
+  // Múi giờ Việt Nam là GMT+7, tức là -420 phút so với UTC
+  const vietnamTimezoneOffset = -420; // phút
+  // Tính chênh lệch múi giờ
+  const timezoneDiff = vietnamTimezoneOffset - serverTimezoneOffset;
   
-  // Nếu ngày ôn tập đã qua hoặc là ngày hiện tại, coi như đến hạn
-  return now >= reviewDate;
+  // Tạo ngày theo múi giờ Việt Nam
+  const vietnamTime = new Date(today.getTime() + timezoneDiff * 60 * 1000);
+  const todayStr = vietnamTime.toISOString().slice(0, 10);
+  
+  // So sánh ngày (yyyy-mm-dd)
+  return todayStr >= nextReviewDate;
 }

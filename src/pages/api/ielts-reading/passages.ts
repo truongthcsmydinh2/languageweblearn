@@ -37,6 +37,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         id: passage.id,
         title: passage.title,
         content: passage.content,
+        passage_data: (passage as any).passage_data, // Type assertion để truy cập passage_data
+        summary: (passage as any).summary, // Type assertion để truy cập summary
         level: passage.level,
         category: passage.category,
         time_limit: passage.time_limit,

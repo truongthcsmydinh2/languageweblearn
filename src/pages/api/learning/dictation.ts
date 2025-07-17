@@ -53,81 +53,105 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === 'GET') {
     try {
       console.log("===== API DICTATION ĐƯỢC GỌI =====");
-      
-      // Kiểm tra kết nối database
-      try {
-        const [testConnection] = await db.execute("SELECT 1 as test");
-      } catch (dbError) {
-        console.error("Lỗi kết nối database:", dbError);
-        return res.status(500).json({ message: 'Lỗi kết nối database', error: String(dbError) });
-      }
-      
-      // Kiểm tra nếu bảng dictation_exercises đã tồn tại
-      const [tables] = await db.execute(
-        "SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = ? AND table_name = 'dictation_exercises'",
-        [process.env.DB_NAME || 'vocab_app']
-      );
-      
-      const tableExists = (tables as any)[0].count > 0;
-      
-      // Tạo bảng nếu chưa tồn tại
-      if (!tableExists) {
-        await db.execute(`
-          CREATE TABLE dictation_exercises (
-            id VARCHAR(36) PRIMARY KEY,
-            title VARCHAR(255) NOT NULL,
-            audio_file VARCHAR(255) NOT NULL,
-            script_file VARCHAR(255) NOT NULL,
-            audio_url VARCHAR(255) NOT NULL,
-            script TEXT,
-            duration INT DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-          )
-        `);
-        
-        // Thử quét file từ đường dẫn mạng, nếu không được thì dùng dữ liệu mẫu
-        try {
-          await scanAndAddExercisesFromNetworkShare();
-        } catch (scanError) {
-          console.error("Lỗi khi quét từ đường dẫn mạng:", scanError);
-          await addSampleExercises();
+      // Lấy danh sách bài học từ dictation_lessons
+      const [lessons] = await db.execute('SELECT * FROM dictation_lessons ORDER BY created_at DESC');
+      // Lấy danh sách câu cho từng bài
+      const lessonIds = (lessons as any[]).map(l => l.id);
+      let sentencesByLesson: Record<string, any[]> = {};
+      if (lessonIds.length > 0) {
+        const [sentences] = await db.execute(
+          `SELECT * FROM dictation_sentences WHERE lesson_id IN (${lessonIds.map(() => '?').join(',')}) ORDER BY sentence_order ASC`,
+          lessonIds
+        );
+        for (const s of sentences as any[]) {
+          if (!sentencesByLesson[s.lesson_id]) sentencesByLesson[s.lesson_id] = [];
+          sentencesByLesson[s.lesson_id].push(s);
         }
       }
-      
-      // Kiểm tra số lượng bài tập trong database
-      const [countRows] = await db.execute('SELECT COUNT(*) as count FROM dictation_exercises');
-      const exerciseCount = (countRows as any)[0].count;
-      
-      // Nếu không có bài tập, thử quét từ đường dẫn mạng hoặc thêm dữ liệu mẫu
-      if (exerciseCount === 0) {
-        try {
-          await scanAndAddExercisesFromNetworkShare();
-        } catch (scanError) {
-          console.error("Lỗi khi quét từ đường dẫn mạng:", scanError);
-          await addSampleExercises();
-        }
-      }
-      
-      // Lấy danh sách bài tập từ cơ sở dữ liệu
-      const [rows] = await db.execute('SELECT * FROM dictation_exercises ORDER BY created_at DESC');
-      
-      const exercises = (rows as any[]).map(row => ({
-        id: row.id,
-        title: row.title,
-        audioUrl: row.audio_url,
-        script: row.script,
-        duration: row.duration || 0,
-        createdAt: row.created_at
+      // Trả về danh sách bài học kèm câu
+      const result = (lessons as any[]).map(lesson => ({
+        ...lesson,
+        sentences: sentencesByLesson[lesson.id] || []
       }));
-      
-      return res.status(200).json(exercises);
+      return res.status(200).json(result);
     } catch (error) {
-      console.error('Lỗi khi lấy danh sách bài tập dictation:', error);
+      console.error('Lỗi khi lấy danh sách bài dictation:', error);
       return res.status(500).json({ message: 'Lỗi server', error: String(error) });
     }
-  } else {
-    return res.status(405).json({ message: 'Method not allowed' });
   }
+
+  // === API POST: Thêm mới bài dictation và các câu ===
+  if (req.method === 'POST') {
+    try {
+      const { title, content, level, thumbnail, base_audio_url, sentence_count, sentences } = req.body;
+      if (!title || !content || !level || !base_audio_url || !sentence_count || !Array.isArray(sentences) || sentences.length === 0) {
+        return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
+      }
+      // Thêm bài vào dictation_lessons
+      const [result] = await db.execute(
+        `INSERT INTO dictation_lessons (title, content, level, thumbnail, base_audio_url, sentence_count, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+        [title, content, level, thumbnail || null, base_audio_url, sentence_count]
+      );
+      // Lấy id bài vừa thêm
+      const lessonId = (result as any).insertId;
+      // Thêm từng câu vào dictation_sentences
+      for (const s of sentences) {
+        await db.execute(
+          `INSERT INTO dictation_sentences (lesson_id, sentence_order, text, audio_url) VALUES (?, ?, ?, ?)`,
+          [lessonId, s.id, s.text, s.audioUrl]
+        );
+      }
+      return res.status(201).json({ success: true, lessonId });
+    } catch (error) {
+      console.error('Lỗi khi thêm bài dictation:', error);
+      return res.status(500).json({ message: 'Lỗi server', error: String(error) });
+    }
+  }
+
+  // === API PUT: Sửa bài dictation và các câu ===
+  if (req.method === 'PUT') {
+    try {
+      const { id, title, content, level, thumbnail, base_audio_url, sentence_count, sentences } = req.body;
+      if (!id || !title || !content || !level || !base_audio_url || !sentence_count || !Array.isArray(sentences) || sentences.length === 0) {
+        return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
+      }
+      // Cập nhật bài
+      await db.execute(
+        `UPDATE dictation_lessons SET title=?, content=?, level=?, thumbnail=?, base_audio_url=?, sentence_count=? WHERE id=?`,
+        [title, content, level, thumbnail || null, base_audio_url, sentence_count, id]
+      );
+      // Xoá hết câu cũ (không xoá bài, chỉ xoá câu)
+      await db.execute(`DELETE FROM dictation_sentences WHERE lesson_id=?`, [id]);
+      // Thêm lại các câu mới
+      for (const s of sentences) {
+        await db.execute(
+          `INSERT INTO dictation_sentences (lesson_id, sentence_order, text, audio_url) VALUES (?, ?, ?, ?)`,
+          [id, s.id, s.text, s.audioUrl]
+        );
+      }
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      console.error('Lỗi khi sửa bài dictation:', error);
+      return res.status(500).json({ message: 'Lỗi server', error: String(error) });
+    }
+  }
+
+  if (req.method === 'DELETE') {
+    try {
+      const id = req.query.id || req.body.id;
+      if (!id) return res.status(400).json({ message: 'Thiếu id bài dictation' });
+      // Xoá các câu trước
+      await db.execute('DELETE FROM dictation_sentences WHERE lesson_id=?', [id]);
+      // Xoá bài học
+      await db.execute('DELETE FROM dictation_lessons WHERE id=?', [id]);
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      console.error('Lỗi khi xoá bài dictation:', error);
+      return res.status(500).json({ message: 'Lỗi server', error: String(error) });
+    }
+  }
+
+  return res.status(405).json({ message: 'Method not allowed' });
 }
 
 // Quét file từ đường dẫn chia sẻ mạng

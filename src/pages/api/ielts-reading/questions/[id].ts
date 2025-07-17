@@ -81,12 +81,57 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         };
       });
 
+      // Parse options và content từ group
+      let parsedGroupOptions = null;
+      let parsedGroupContent = null;
+      
+      try {
+        if ((group as any).options && typeof (group as any).options === 'string' && (group as any).options.trim() !== '') {
+          parsedGroupOptions = JSON.parse((group as any).options);
+        } else if ((group as any).options) {
+          parsedGroupOptions = (group as any).options;
+        }
+      } catch (parseError) {
+        console.error('Error parsing group options:', group.id, parseError);
+      }
+      
+      try {
+        if ((group as any).content && typeof (group as any).content === 'string' && (group as any).content.trim() !== '') {
+          parsedGroupContent = JSON.parse((group as any).content);
+        } else if ((group as any).content) {
+          parsedGroupContent = (group as any).content;
+        }
+      } catch (parseError) {
+        console.error('Error parsing group content:', group.id, parseError);
+      }
+
+      // --- BỔ SUNG: Nếu là summary_completion và content là string, tự động chuyển thành mảng object ---
+      if ((group.question_type === 'summary_completion' || group.question_type === 'note_completion') && typeof parsedGroupContent === 'string') {
+        const regex = /(\_{3,}|\.{3,}|\s*_{2,}\s*|\s*\.\.\.\s*)/g;
+        let lastIndex = 0;
+        let match;
+        let arr: any[] = [];
+        while ((match = regex.exec(parsedGroupContent)) !== null) {
+          if (match.index > lastIndex) {
+            arr.push({ type: 'text', value: parsedGroupContent.slice(lastIndex, match.index) });
+          }
+          arr.push({ type: 'blank' });
+          lastIndex = match.index + match[0].length;
+        }
+        if (lastIndex < parsedGroupContent.length) {
+          arr.push({ type: 'text', value: parsedGroupContent.slice(lastIndex) });
+        }
+        parsedGroupContent = arr;
+      }
+
       return {
         id: group.id,
         instructions: group.instructions,
         question_type: group.question_type,
         display_order: group.display_order,
-        questions: questions
+        questions: questions,
+        options: parsedGroupOptions,
+        content: parsedGroupContent
       };
     });
 

@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Dịch Nhanh Cá Nhân",
+  "version": "1.0",
+  "description": "Bôi đen để dịch. Chỉ dùng cho cá nhân.",
+
+  "permissions": [
+    "scripting"
+  ],
+
+  "host_permissions": [
+    "https://translation.googleapis.com/*",
+    "http://amnhactechcf.ddns.net:3030/*",
+    "https://generativelanguage.googleapis.com/*" 
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["styles.css"]
+    }
+  ],
+  
+  "web_accessible_resources": [
+    {
+      "resources": ["images/translate_icon.png"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+
+  "action": {
+    "default_icon": "images/translate_icon.png",
+    "default_title": "Từ vựng đã lưu",
+    "default_popup": "popup.html"
+  }
+}

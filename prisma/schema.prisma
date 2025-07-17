@@ -33,23 +33,25 @@ model vocab_sets {
 }
 
 model terms {
-  id               Int         @id @default(autoincrement())
-  meanings         Json
-  created_at       DateTime    @default(now())
-  example_sentence String?
-  firebase_uid     String
-  last_review_en   BigInt      @default(0)
-  last_review_vi   BigInt      @default(0)
-  updated_at       DateTime    @default(now())
-  level_en         Int         @default(0)
-  level_vi         Int         @default(0)
-  notes            String?
-  part_of_speech   String?
-  review_time_en   BigInt      @default(0)
-  review_time_vi   BigInt      @default(0)
-  vocab            String
-  set_terms        set_terms[]
-  user             users       @relation(fields: [firebase_uid], references: [firebase_uid], onDelete: Cascade)
+  id                 Int         @id @default(autoincrement())
+  meanings           Json
+  created_at         DateTime    @default(now())
+  example_sentence   String?
+  firebase_uid       String
+  last_review_en     BigInt      @default(0)
+  last_review_vi     BigInt      @default(0)
+  updated_at         DateTime    @default(now())
+  level_en           Int         @default(0)
+  level_vi           Int         @default(0)
+  notes              String?
+  part_of_speech     String?
+  review_time_en     BigInt      @default(0)
+  review_time_vi     BigInt      @default(0)
+  vocab              String
+  status_learning_en String?     @db.VarChar(255)
+  status_learning_vi String?     @db.VarChar(255)
+  set_terms          set_terms[]
+  user               users       @relation(fields: [firebase_uid], references: [firebase_uid], onDelete: Cascade)
 
   @@index([firebase_uid], map: "terms_firebase_uid_fkey")
 }
@@ -87,11 +89,16 @@ model token_usage {
 }
 
 model dictation_lessons {
-  id         Int      @id @default(autoincrement())
-  title      String
-  content    String
-  audio_url  String?
-  created_at DateTime @default(now())
+  id                  Int                   @id @default(autoincrement())
+  title               String
+  content             String?               @db.LongText
+  audio_url           String?
+  created_at          DateTime              @default(now())
+  level               String?               @db.VarChar(50)
+  thumbnail           String?               @db.VarChar(255)
+  base_audio_url      String?               @db.VarChar(255)
+  sentence_count      Int?
+  dictation_sentences dictation_sentences[]
 }
 
 model WritingLesson {
@@ -186,6 +193,8 @@ model ielts_reading_passages {
   is_active       Boolean                         @default(true)
   created_at      DateTime                        @default(now())
   updated_at      DateTime                        @default(now()) @updatedAt
+  passage_data    Json?
+  summary         Json?
   attempts        ielts_reading_attempts[]
   question_groups ielts_reading_question_groups[]
 }
@@ -198,6 +207,8 @@ model ielts_reading_question_groups {
   created_at    DateTime                  @default(now())
   updated_at    DateTime                  @default(now()) @updatedAt
   passage_id    Int
+  content       String?                   @db.Text
+  options       Json?
   passage       ielts_reading_passages    @relation(fields: [passage_id], references: [id], onDelete: Cascade)
   questions     ielts_reading_questions[]
 
@@ -234,6 +245,40 @@ model ielts_reading_attempts {
 
   @@index([passage_id], map: "ielts_reading_attempts_passage_id_fkey")
   @@index([firebase_uid])
+}
+
+model dictation_exercises {
+  id          String    @id @db.VarChar(36)
+  title       String    @db.VarChar(255)
+  audio_file  String    @db.VarChar(255)
+  script_file String    @db.VarChar(255)
+  audio_url   String    @db.VarChar(255)
+  script      String?   @db.Text
+  duration    Int?      @default(0)
+  created_at  DateTime? @default(now()) @db.DateTime(0)
+}
+
+model dictation_progress {
+  id            Int       @id @default(autoincrement())
+  user_id       String    @db.VarChar(64)
+  lesson_id     String    @db.VarChar(64)
+  answers       String?   @db.Text
+  correct_count Int?
+  total         Int?
+  duration      Int?
+  created_at    DateTime? @default(now()) @db.DateTime(0)
+  updated_at    DateTime? @default(now()) @db.DateTime(0)
+}
+
+model dictation_sentences {
+  id                Int               @id @default(autoincrement())
+  lesson_id         Int
+  sentence_order    Int
+  text              String            @db.Text
+  audio_url         String            @db.VarChar(255)
+  dictation_lessons dictation_lessons @relation(fields: [lesson_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "dictation_sentences_ibfk_1")
+
+  @@unique([lesson_id, sentence_order], map: "lesson_id")
 }
 
 enum ApiKeyStatus {
@@ -275,6 +320,8 @@ enum IeltsReadingLevel {
 
 enum IeltsQuestionType {
   multiple_choice
+  multiple_choice_5
+  multiple_choice_group
   true_false_not_given
   yes_no_not_given
   matching_headings

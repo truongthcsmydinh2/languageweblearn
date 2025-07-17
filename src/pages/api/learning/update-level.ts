@@ -1,39 +1,60 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '@/lib/mysql';
 
-// Hàm tính thời gian ôn tập tiếp theo dựa trên level
-function calculateNextReviewTime(level: number): string {
+// Hàm lấy ngày hiện tại theo múi giờ Việt Nam (GMT+7)
+function getTodayStrGMT7() {
   const now = new Date();
-  let next = new Date(now);
   
-  switch (level) {
-    case 0: // Từ mới
-      return now.toISOString().slice(0, 10); // Ngay lập tức
-    case 1:
-      next.setDate(now.getDate() + 1); break; // 1 ngày
-    case 2:
-      next.setDate(now.getDate() + 2); break; // 2 ngày
-    case 3:
-      next.setDate(now.getDate() + 3); break; // 3 ngày
-    case 4:
-      next.setDate(now.getDate() + 4); break; // 4 ngày
-    case 5:
-      next.setDate(now.getDate() + 7); break; // 1 tuần
-    case 6:
-      next.setDate(now.getDate() + 14); break; // 2 tuần
-    case 7:
-      next.setMonth(now.getMonth() + 1); break; // 1 tháng
-    case 8:
-      next.setMonth(now.getMonth() + 2); break; // 2 tháng
-    case 9:
-      next.setMonth(now.getMonth() + 3); break; // 3 tháng
-    case 10:
-      next.setMonth(now.getMonth() + 6); break; // 6 tháng
-    default:
-      return now.toISOString().slice(0, 10);
+  // Tạo ngày theo múi giờ Việt Nam (GMT+7)
+  // Sử dụng Intl.DateTimeFormat để đảm bảo chính xác
+  const vietnamDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(now);
+  
+  return vietnamDate; // Định dạng yyyy-mm-dd
+}
+
+// Hàm tính thời gian ôn tập tiếp theo dựa trên level (sử dụng múi giờ Việt Nam)
+function calculateNextReviewTime(level: number): number {
+  const now = new Date();
+  
+  const vietnamDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(now);
+  
+  const vietnamTime = new Date(vietnamDate + 'T00:00:00.000Z');
+
+  // SỬA: Nếu level 0, trả về timestamp của ngày hôm nay
+  if (level === 0) {
+    return vietnamTime.getTime();
   }
   
-  return next.toISOString().slice(0, 10);
+  let next = new Date(vietnamTime);
+  
+  switch (level) {
+    case 1: next.setDate(vietnamTime.getDate() + 1); break;
+    case 2: next.setDate(vietnamTime.getDate() + 2); break;
+    case 3: next.setDate(vietnamTime.getDate() + 3); break;
+    case 4: next.setDate(vietnamTime.getDate() + 4); break;
+    case 5: next.setDate(vietnamTime.getDate() + 7); break;
+    case 6: next.setDate(vietnamTime.getDate() + 14); break;
+    case 7: next.setMonth(vietnamTime.getMonth() + 1); break;
+    case 8: next.setMonth(vietnamTime.getMonth() + 2); break;
+    case 9: next.setMonth(vietnamTime.getMonth() + 3); break;
+    case 10: next.setMonth(vietnamTime.getMonth() + 6); break;
+    // SỬA: Mặc định trả về timestamp của ngày hôm nay
+    default:
+      return vietnamTime.getTime();
+  }
+  
+  // SỬA: Trả về timestamp dạng số
+  return next.getTime();
 }
 
 // Hàm tính toán level mới dựa trên kết quả trả lời
@@ -155,11 +176,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 }
 
-// Hàm tính số ngày đến lần ôn tập tiếp theo
-function getDaysUntilReview(nextReviewTime: string): number {
-  const today = new Date();
-  const nextReview = new Date(nextReviewTime);
-  const diffTime = nextReview.getTime() - today.getTime();
+// Hàm tính số ngày đến lần ôn tập tiếp theo (sử dụng múi giờ Việt Nam)
+// SỬA: Thay đổi kiểu tham số từ string -> number
+function getDaysUntilReview(nextReviewTimestamp: number): number {
+  const todayStr = getTodayStrGMT7(); // Lấy 'yyyy-mm-dd' của hôm nay
+  const todayDate = new Date(todayStr + 'T00:00:00.000Z');
+
+  // Tạo đối tượng Date trực tiếp từ timestamp
+  const nextReviewDateObj = new Date(nextReviewTimestamp);
+  
+  const diffTime = nextReviewDateObj.getTime() - todayDate.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
   return Math.max(0, diffDays);
-} 
+}

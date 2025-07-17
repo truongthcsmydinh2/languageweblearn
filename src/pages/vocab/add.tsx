@@ -676,15 +676,15 @@ const AddVocabPage = () => {
       {showDuplicateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-auto">
-            <h2 className="text-xl font-bold mb-4">Kết quả thêm từ vựng</h2>
+            <h2 className="text-xl text-black font-bold mb-4">Kết quả thêm từ vựng</h2>
             
             {duplicateTerms.length > 0 && (
               <>
-                <p className="mb-4">Các từ vựng sau đã tồn tại trong cơ sở dữ liệu của bạn và đã được bỏ qua:</p>
+                <p className="mb-4 text-black">Các từ vựng sau đã tồn tại trong cơ sở dữ liệu của bạn và đã được bỏ qua:</p>
                 
                 <div className="border rounded-lg overflow-hidden mb-6">
                   <table className="w-full">
-                    <thead className="bg-gray-100">
+                    <thead className="bg-gray-400 text-white">
                       <tr>
                         <th className="px-4 py-2 text-left">Từ vựng</th>
                         <th className="px-4 py-2 text-left">Nghĩa</th>
@@ -693,7 +693,7 @@ const AddVocabPage = () => {
                     </thead>
                     <tbody>
                       {duplicateTerms.map((term, index) => (
-                        <tr key={index} className="border-t">
+                        <tr key={index} className="border-t bg-gray-300 text-black">
                           <td className="px-4 py-2">{term.vocab}</td>
                           <td className="px-4 py-2">{term.meaning}</td>
                           <td className="px-4 py-2">

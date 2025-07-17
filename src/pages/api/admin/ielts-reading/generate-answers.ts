@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
+import { generateContentWithTiming, generateJSONContent } from '@/lib/gemini';
 
 const prisma = new PrismaClient();
 
@@ -66,56 +67,42 @@ ${raw_answers}
 - Đảm bảo đáp án chính xác dựa trên nội dung bài đọc
 `;
 
-      console.log('📤 Gửi yêu cầu biên dịch đáp án tới Gemini API');
-      
-      const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-goog-api-key': process.env.GEMINI_API_KEY || ''
-        },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.3,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 4096,
-          }
-        })
-      });
-
-      if (!geminiRes.ok) {
-        const errorText = await geminiRes.text();
-        console.error('❌ Gemini API error:', errorText);
-        return res.status(500).json({ error: 'Lỗi Gemini API', detail: errorText });
-      }
-
-      const geminiData = await geminiRes.json();
-      console.log('📥 Gemini response received');
+      console.log('📤 Gửi yêu cầu biên dịch đáp án tới Gemini API với Streaming');
+      console.log('🌏 Region: asia-southeast1 (Singapore) - Tối ưu tốc độ');
       
       let answersText = '';
       
       try {
-        answersText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        // Sử dụng streaming API để tăng tốc độ phản hồi
+        const result = await generateContentWithTiming(prompt, 'gemini-1.5-flash', true);
+        console.log(`⚡ Thời gian phản hồi streaming: ${result.duration}ms`);
         
-        // Fallback: thử các cấu trúc khác
-        if (!answersText) {
-          answersText = geminiData?.candidates?.[0]?.content?.text || '';
-        }
-        if (!answersText) {
-          answersText = geminiData?.text || '';
-        }
-        
+        answersText = result.text;
+        console.log('✅ Received response từ streaming API');
         console.log('📝 Extracted text:', answersText.substring(0, 200) + '...');
-      } catch (parseError) {
-        console.error('❌ Lỗi parse response:', parseError);
-        return res.status(500).json({ error: 'Lỗi parse response từ Gemini', detail: String(parseError) });
+        
+      } catch (streamingError) {
+        console.error('❌ Lỗi streaming API:', streamingError);
+        console.log('🔄 Fallback to standard API...');
+        
+        try {
+          // Fallback to standard API
+          const fallbackResult = await generateContentWithTiming(prompt, 'gemini-1.5-flash', false);
+          console.log(`⚡ Thời gian phản hồi fallback: ${fallbackResult.duration}ms`);
+          
+          answersText = fallbackResult.text;
+          console.log('✅ Received response từ fallback API');
+          console.log('📝 Extracted text:', answersText.substring(0, 200) + '...');
+          
+        } catch (fallbackError) {
+          console.error('❌ Cả streaming và fallback đều thất bại:', fallbackError);
+          return res.status(500).json({ error: 'Lỗi Gemini API', detail: String(fallbackError) });
+        }
       }
 
       if (!answersText) {
         console.error('❌ Không tìm thấy text trong response');
-        return res.status(500).json({ error: 'Gemini không trả về đáp án', detail: JSON.stringify(geminiData) });
+        return res.status(500).json({ error: 'Gemini không trả về đáp án' });
       }
 
       // Parse JSON từ response
@@ -219,4 +206,4 @@ ${raw_answers}
   }
 
   return res.status(405).json({ error: 'Method not allowed' });
-} 
+}

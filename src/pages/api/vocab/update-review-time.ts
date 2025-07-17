@@ -64,9 +64,21 @@ export default async function handler(
   }
 }
 
-// Hàm tính toán thời gian ôn tập tiếp theo dựa trên cấp độ
+// Hàm tính toán thời gian ôn tập tiếp theo dựa trên cấp độ (sử dụng múi giờ Việt Nam)
 function calculateNextReviewTime(level = 0) {
-  const now = Date.now();
+  const now = new Date();
+  
+  // Tạo ngày theo múi giờ Việt Nam (GMT+7)
+  const vietnamDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(now);
+  
+  // Tạo Date object từ ngày Việt Nam
+  const vietnamTime = new Date(vietnamDate + 'T00:00:00.000Z');
+  let next = new Date(vietnamTime);
   
   // Các khoảng thời gian ôn tập (đơn vị: ngày)
   const intervals = [
@@ -88,7 +100,14 @@ function calculateNextReviewTime(level = 0) {
     ? intervals[level] 
     : intervals[0];
   
-  // Tính toán timestamp cho thời gian ôn tập tiếp theo (milliseconds)
-  // 1 ngày = 24 giờ * 60 phút * 60 giây * 1000 milliseconds
-  return now + interval * 24 * 60 * 60 * 1000;
+  // Tính toán ngày ôn tập tiếp theo
+  next.setDate(vietnamTime.getDate() + interval);
+  
+  // Format lại theo múi giờ Việt Nam
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(next);
 } 

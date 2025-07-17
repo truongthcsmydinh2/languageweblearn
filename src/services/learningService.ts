@@ -93,7 +93,7 @@ async function updateTermSRSData(
   await updateExistingTerm(userId, setId, termId, {
     memoryStrength: newStrength,
     lastReviewed: new Date().toISOString(),
-    nextReviewDate: nextReviewDate.toISOString()
+    nextReviewDate: nextReviewDate
   });
 }
 
@@ -196,14 +196,24 @@ export function calculateSessionStats(
   };
 }
 
-// Helper function for SRS implementation
+// Helper function for SRS implementation (sử dụng múi giờ Việt Nam)
 function isDue(nextReviewDate: string | null): boolean {
   if (!nextReviewDate) return true;
   
-  const now = new Date();
-  const reviewDate = new Date(nextReviewDate);
+  const today = new Date();
+  // Lấy múi giờ hiện tại của server
+  const serverTimezoneOffset = today.getTimezoneOffset(); // phút
+  // Múi giờ Việt Nam là GMT+7, tức là -420 phút so với UTC
+  const vietnamTimezoneOffset = -420; // phút
+  // Tính chênh lệch múi giờ
+  const timezoneDiff = vietnamTimezoneOffset - serverTimezoneOffset;
   
-  return now >= reviewDate;
+  // Tạo ngày theo múi giờ Việt Nam
+  const vietnamTime = new Date(today.getTime() + timezoneDiff * 60 * 1000);
+  const todayStr = vietnamTime.toISOString().slice(0, 10);
+  
+  // So sánh ngày (yyyy-mm-dd)
+  return todayStr >= nextReviewDate;
 }
 
 // Hàm lấy toàn bộ lịch sử học tập

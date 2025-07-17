@@ -16,12 +16,20 @@ interface LevelStatsResult extends RowDataPacket {
   count: number;
 }
 
-// Hàm lấy ngày hiện tại theo GMT+7
+// Hàm lấy ngày hiện tại theo múi giờ Việt Nam (GMT+7)
 function getTodayStrGMT7() {
   const now = new Date();
-  // GMT+7 offset = 7*60 = 420 phút
-  const gmt7 = new Date(now.getTime() + (7 * 60 - now.getTimezoneOffset()) * 60000);
-  return gmt7.toISOString().slice(0, 10);
+  
+  // Tạo ngày theo múi giờ Việt Nam (GMT+7)
+  // Sử dụng Intl.DateTimeFormat để đảm bảo chính xác
+  const vietnamDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(now);
+  
+  return vietnamDate; // Định dạng yyyy-mm-dd
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

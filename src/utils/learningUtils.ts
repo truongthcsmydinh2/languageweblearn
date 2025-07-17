@@ -25,44 +25,62 @@ export interface LearningItem {
 }
 
 /**
- * Tính thời gian ôn tập tiếp theo dựa vào level
+ * Tính thời gian ôn tập tiếp theo dựa vào level (sử dụng múi giờ Việt Nam)
  * @param level Level hiện tại của từ vựng
  * @returns Ngày ôn tập tiếp theo dạng yyyy-mm-dd
  */
 export function calculateNextReviewTime(level: number): string {
   const now = new Date();
-  let next = new Date(now);
   
-  switch (level) {
-    case 0:
-      return now.toISOString().slice(0, 10); // ngay lập tức
-    case 1:
-      next.setDate(now.getDate() + 1); break;
-    case 2:
-      next.setDate(now.getDate() + 2); break;
-    case 3:
-      next.setDate(now.getDate() + 3); break;
-    case 4:
-      next.setDate(now.getDate() + 4); break;
-    case 5:
-      next.setDate(now.getDate() + 7); break;
-    case 6:
-      next.setDate(now.getDate() + 14); break;
-    case 7:
-      next.setMonth(now.getMonth() + 1); break;
-    case 8:
-      next.setMonth(now.getMonth() + 2); break;
-    case 9:
-      next.setMonth(now.getMonth() + 3); break;
-    case 10:
-      next.setMonth(now.getMonth() + 6); break;
-    default:
-      return now.toISOString().slice(0, 10);
+  // Tạo ngày theo múi giờ Việt Nam (GMT+7)
+  const vietnamDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(now);
+  
+  // Nếu level 0, trả về ngày hôm nay
+  if (level === 0) {
+    return vietnamDate;
   }
   
-  // Reset giờ, phút, giây để đảm bảo tính nhất quán
-  next.setHours(0, 0, 0, 0);
-  return next.toISOString().slice(0, 10);
+  // Tạo Date object từ ngày Việt Nam
+  const vietnamTime = new Date(vietnamDate + 'T00:00:00.000Z');
+  let next = new Date(vietnamTime);
+  
+  switch (level) {
+    case 1:
+      next.setDate(vietnamTime.getDate() + 1); break;
+    case 2:
+      next.setDate(vietnamTime.getDate() + 2); break;
+    case 3:
+      next.setDate(vietnamTime.getDate() + 3); break;
+    case 4:
+      next.setDate(vietnamTime.getDate() + 4); break;
+    case 5:
+      next.setDate(vietnamTime.getDate() + 7); break;
+    case 6:
+      next.setDate(vietnamTime.getDate() + 14); break;
+    case 7:
+      next.setMonth(vietnamTime.getMonth() + 1); break;
+    case 8:
+      next.setMonth(vietnamTime.getMonth() + 2); break;
+    case 9:
+      next.setMonth(vietnamTime.getMonth() + 3); break;
+    case 10:
+      next.setMonth(vietnamTime.getMonth() + 6); break;
+    default:
+      return vietnamDate;
+  }
+  
+  // Format lại theo múi giờ Việt Nam
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(next);
 }
 
 /**
@@ -78,14 +96,22 @@ export function getDateString(ts: number | string): string {
 }
 
 /**
- * Chuyển đổi ngày về múi giờ GMT+7
- * @returns Chuỗi ngày dạng yyyy-mm-dd theo múi giờ GMT+7
+ * Chuyển đổi ngày về múi giờ Việt Nam (GMT+7)
+ * @returns Chuỗi ngày dạng yyyy-mm-dd theo múi giờ Việt Nam
  */
 export function getTodayStrGMT7(): string {
   const now = new Date();
-  // GMT+7 offset = 7*60 = 420 phút
-  const gmt7 = new Date(now.getTime() + (7 * 60 - now.getTimezoneOffset()) * 60000);
-  return gmt7.toISOString().slice(0, 10);
+  
+  // Tạo ngày theo múi giờ Việt Nam (GMT+7)
+  // Sử dụng Intl.DateTimeFormat để đảm bảo chính xác
+  const vietnamDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(now);
+  
+  return vietnamDate; // Định dạng yyyy-mm-dd
 }
 
 /**

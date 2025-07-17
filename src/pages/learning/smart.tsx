@@ -56,9 +56,17 @@ function normalizeForComparison(text: string): string {
 // Hàm lấy ngày hiện tại theo GMT+7
 function getTodayStrGMT7() {
   const now = new Date();
-  // GMT+7 offset = 7*60 = 420 phút
-  const gmt7 = new Date(now.getTime() + (7 * 60 - now.getTimezoneOffset()) * 60000);
-  return gmt7.toISOString().slice(0, 10);
+  
+  // Tạo ngày theo múi giờ Việt Nam (GMT+7)
+  // Sử dụng Intl.DateTimeFormat để đảm bảo chính xác
+  const vietnamDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(now);
+  
+  return vietnamDate; // Định dạng yyyy-mm-dd
 }
 
 // Hàm xử lý an toàn cho trường meanings
@@ -76,6 +84,30 @@ function shuffleArray<T>(array: T[]): T[] {
     [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
   }
   return newArray;
+}
+
+// Hàm so sánh đáp án với chế độ nhân từ
+function isAnswerAccepted(correctAnswers: string[], userInput: string, lenient: boolean): boolean {
+  const normalizedUser = normalizeForComparison(userInput);
+  
+  // Nếu user không nhập gì, luôn trả về false
+  if (!normalizedUser || normalizedUser.trim() === '') {
+    return false;
+  }
+  
+  if (!lenient) {
+    // So sánh chặt chẽ
+    return correctAnswers.some((ans) => normalizeForComparison(ans) === normalizedUser);
+  }
+  // Chế độ nhân từ: chỉ cần đúng một phần, bỏ qua lỗi nhỏ
+  for (const ans of correctAnswers) {
+    const parts = ans.split(',').map((p) => normalizeForComparison(p));
+    // Nếu user nhập đúng một phần nào đó trong đáp án (có thể là một nghĩa trong nhiều nghĩa)
+    if (parts.some((part) => part && normalizedUser && (part.includes(normalizedUser) || normalizedUser.includes(part)))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 const SmartLearningPage = () => {
@@ -97,6 +129,8 @@ const SmartLearningPage = () => {
   const [termsCount, setTermsCount] = useState<number>(0);
   // Thêm state để lưu thông tin học tiếp theo
   const [nextLearningInfo, setNextLearningInfo] = useState<NextLearningInfo | null>(null);
+  // Thêm state cho chế độ nhân từ
+  const [lenientMode, setLenientMode] = useState<boolean>(true);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -123,6 +157,78 @@ const SmartLearningPage = () => {
           nextTerm();
         }
       }
+      // Tổ hợp Shift+1: Đảo trạng thái đúng/sai khi đang hiển thị kết quả
+      if (e.shiftKey && (e.key === '1' || e.key === '!')) {
+        if (sessionState === SessionState.LEARNING && showingResultRef.current && isAnswerCorrect !== null) {
+          const currentItem = learningItems[currentIndex];
+          if (!currentItem) return;
+          
+          // Đảo trạng thái
+          const newIsCorrect = isAnswerCorrect === true ? false : true;
+          setIsAnswerCorrect(newIsCorrect);
+          
+          // Cập nhật stats
+          setStats((prev) => {
+            if (isAnswerCorrect === true) {
+              return { ...prev, correct: Math.max(0, prev.correct - 1) };
+            } else {
+              return { ...prev, correct: prev.correct + 1 };
+            }
+          });
+          
+          // Gọi API để cập nhật level với trạng thái mới
+          (async () => {
+            try {
+              if (!user || !user.uid) {
+                setError("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.");
+                return;
+              }
+              
+              const response = await fetch('/api/learning/update-level', {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'firebase_uid': user.uid
+                },
+                body: JSON.stringify({
+                  term_id: currentItem.term.id,
+                  is_correct: newIsCorrect,
+                  mode: currentItem.mode
+                })
+              });
+              
+              if (!response.ok) {
+                throw new Error(`Lỗi API: ${response.status} ${response.statusText}`);
+              }
+              
+              const data = await response.json();
+              
+              // Cập nhật UI với level mới
+              setLearningItems(prevItems => prevItems.map((item, idx) => {
+                if (idx === currentIndex) {
+                  const updatedTerm = { ...item.term };
+                  
+                  if (item.mode === 'en_to_vi' && data.field_updated === 'level_en') {
+                    updatedTerm.level_en = Math.max(0, data.new_level_en);
+                    updatedTerm.review_time_en = data.next_review_time_en;
+                  }
+                  
+                  if (item.mode === 'vi_to_en' && data.field_updated === 'level_vi') {
+                    updatedTerm.level_vi = Math.max(0, data.new_level_vi);
+                    updatedTerm.review_time_vi = data.next_review_time_vi;
+                  }
+                  
+                  return { ...item, term: updatedTerm };
+                }
+                return item;
+              }));
+            } catch (error) {
+              console.error('Lỗi khi cập nhật level:', error);
+              setError(error instanceof Error ? error.message : 'Đã xảy ra lỗi khi cập nhật tiến độ học tập');
+            }
+          })();
+        }
+      }
     };
 
     window.addEventListener('keydown', handleGlobalKeyPress);
@@ -130,7 +236,7 @@ const SmartLearningPage = () => {
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyPress);
     };
-  }, [sessionState, learningItems.length, showingResultRef.current]);
+  }, [sessionState, learningItems.length, showingResultRef.current, isAnswerCorrect, currentIndex, user]);
 
   // Lấy danh sách các lượt học từ API
   const fetchLearningItems = async () => {
@@ -222,73 +328,73 @@ const SmartLearningPage = () => {
   };
 
   const handleAnswer = async () => {
-    if (userAnswer.trim().length === 0) return;
-    
+    // Cho phép Enter khi input rỗng để qua từ (không cần trả lời đúng mới cho qua)
+    // Nếu input rỗng thì coi như trả lời sai (isCorrect = false), nhưng vẫn cho qua
     const currentItem = learningItems[currentIndex];
     if (!currentItem) return;
-    
     let isCorrect = false;
     
-    if (currentItem.mode === 'en_to_vi') {
+    // Kiểm tra nếu userAnswer rỗng hoặc chỉ có khoảng trắng
+    if (!userAnswer || userAnswer.trim() === '') {
+      console.log('=== SMART LEARNING: EMPTY INPUT ===');
+      console.log('userAnswer:', userAnswer);
+      console.log('isCorrect set to false for empty input');
+      console.log('=== END SMART LEARNING: EMPTY INPUT ===');
+      isCorrect = false;
+    } else if (currentItem.mode === 'en_to_vi') {
       const correctAnswers = Array.isArray(currentItem.term.meanings)
-        ? currentItem.term.meanings
-        : [currentItem.term.meanings];
-      isCorrect = (correctAnswers as string[]).some((correctAnswer: string) =>
-        normalizeForComparison(correctAnswer) === normalizeForComparison(userAnswer)
-      );
-        } else {
-      isCorrect = normalizeForComparison(currentItem.term.vocab) === normalizeForComparison(userAnswer);
+        ? currentItem.term.meanings as string[]
+        : (currentItem.term.meanings ? [currentItem.term.meanings] : []);
+      isCorrect = isAnswerAccepted(correctAnswers, userAnswer, lenientMode);
+    } else {
+      // vi_to_en: chỉ cần đúng một phần từ vựng nếu nhân từ
+      if (lenientMode) {
+        const normalizedVocab = normalizeForComparison(currentItem.term.vocab);
+        const normalizedUser = normalizeForComparison(userAnswer);
+        isCorrect = normalizedVocab.includes(normalizedUser) || normalizedUser.includes(normalizedVocab);
+      } else {
+        isCorrect = normalizeForComparison(currentItem.term.vocab) === normalizeForComparison(userAnswer);
+      }
     }
-    
     setIsAnswerCorrect(isCorrect);
     setStats(prev => ({ ...prev, total: prev.total + 1, correct: isCorrect ? prev.correct + 1 : prev.correct }));
-    
     showingResultRef.current = true;
-    
     try {
       if (!user || !user.uid) {
         setError("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.");
         return;
       }
-
       const response = await fetch('/api/learning/update-level', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-            'firebase_uid': user.uid
+          'firebase_uid': user.uid
         },
         body: JSON.stringify({
           term_id: currentItem.term.id,
-            is_correct: isCorrect,
+          is_correct: isCorrect,
           mode: currentItem.mode
         })
       });
-      
       if (!response.ok) {
         throw new Error(`Lỗi API: ${response.status} ${response.statusText}`);
       }
-      
-          const data = await response.json();
-      console.log('Kết quả cập nhật level:', data);
-      
+      const data = await response.json();
       setLearningItems(prevItems => prevItems.map((item, idx) => {
         if (idx === currentIndex) {
           const updatedTerm = { ...item.term };
-          
           if (item.mode === 'en_to_vi' && data.field_updated === 'level_en') {
             updatedTerm.level_en = Math.max(0, data.new_level_en);
             updatedTerm.review_time_en = data.next_review_time_en;
           }
-          
           if (item.mode === 'vi_to_en' && data.field_updated === 'level_vi') {
             updatedTerm.level_vi = Math.max(0, data.new_level_vi);
             updatedTerm.review_time_vi = data.next_review_time_vi;
           }
-          
           return { ...item, term: updatedTerm };
-            }
+        }
         return item;
-          }));
+      }));
     } catch (error) {
       console.error('Lỗi khi cập nhật level:', error);
       setError(error instanceof Error ? error.message : 'Đã xảy ra lỗi khi cập nhật tiến độ học tập');
@@ -315,14 +421,15 @@ const SmartLearningPage = () => {
 
   const handleKeyPress = (e: ReactKeyboardEvent) => {
     if (e.key === 'Enter') {
-          e.preventDefault();
+      e.preventDefault();
       if (isAnswerCorrect === null) {
+        // Cho phép Enter khi input rỗng để qua từ (không cần nhập gì vẫn qua được)
         handleAnswer();
       } else {
         nextTerm();
-    }
       }
-    };
+    }
+  };
 
   const getCurrentItem = () => {
     return learningItems[currentIndex];
@@ -432,6 +539,15 @@ const SmartLearningPage = () => {
                       <div className="text-sm text-gray-400">
                         {randomMode ? 'Các từ sẽ được hiển thị theo thứ tự ngẫu nhiên' : 'Các từ sẽ hiển thị theo thứ tự cố định'}
                       </div>
+                    </div>
+                    <div className="flex items-center mt-4">
+                      <input
+                        type="checkbox"
+                        checked={lenientMode}
+                        onChange={(e) => setLenientMode(e.target.checked)}
+                        className="form-checkbox h-5 w-5 text-secondary-200 rounded border-gray-500 focus:ring-secondary-200 bg-gray-700"
+                      />
+                      <span className="ml-2 text-gray-200">Chế độ nhân từ (chấp nhận đáp án gần đúng, một phần nghĩa)</span>
                     </div>
                   </div>
                   
@@ -597,7 +713,7 @@ const SmartLearningPage = () => {
                   </div>
                   
                   <div className="bg-gray-700 rounded-lg p-4 mb-4">
-                    <p className="text-xl text-gray-50 font-medium">
+                    <p className="text-3xl text-gray-50 font-medium">
                       {getCorrectAnswer()}
                     </p>
                   </div>

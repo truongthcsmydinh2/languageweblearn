@@ -454,13 +454,22 @@ const VocabService = {
     return updatedWord;
   },
   
-  // Tính ngày đến hạn ôn tập dựa trên level
+  // Tính ngày đến hạn ôn tập dựa trên level (sử dụng múi giờ Việt Nam)
   calculateDueDate: (level: number): Date => {
     const now = new Date();
+    // Lấy múi giờ hiện tại của server
+    const serverTimezoneOffset = now.getTimezoneOffset(); // phút
+    // Múi giờ Việt Nam là GMT+7, tức là -420 phút so với UTC
+    const vietnamTimezoneOffset = -420; // phút
+    // Tính chênh lệch múi giờ
+    const timezoneDiff = vietnamTimezoneOffset - serverTimezoneOffset;
+    
+    // Tạo ngày theo múi giờ Việt Nam
+    const vietnamTime = new Date(now.getTime() + timezoneDiff * 60 * 1000);
     const daysToAdd = VocabService.getDaysToAddBasedOnLevel(level);
     
-    const dueDate = new Date(now);
-    dueDate.setDate(now.getDate() + daysToAdd);
+    const dueDate = new Date(vietnamTime);
+    dueDate.setDate(vietnamTime.getDate() + daysToAdd);
     
     return dueDate;
   },

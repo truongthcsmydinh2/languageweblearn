@@ -1,0 +1,157 @@
+{
+  "title": "IELTS Reading Test - Sample",
+  "description": "Bài test mẫu để kiểm tra tính năng import",
+  "is_active": true,
+  "passages": [
+    {
+      "title": "The Future of Renewable Energy",
+      "content": "Renewable energy sources such as solar, wind, and hydroelectric power are becoming increasingly important in the global energy mix. As concerns about climate change and fossil fuel depletion grow, governments and businesses worldwide are investing heavily in renewable energy technologies.\n\nSolar energy, which harnesses the power of the sun through photovoltaic cells, has seen remarkable growth in recent years. The cost of solar panels has decreased significantly, making solar power more accessible to homeowners and businesses. In many countries, solar installations have become a common sight on rooftops and in large solar farms.\n\nWind energy is another rapidly growing renewable source. Modern wind turbines can generate substantial amounts of electricity, and wind farms are being built both onshore and offshore. Countries with strong wind resources, such as Denmark and Germany, have made significant progress in integrating wind power into their energy grids.\n\nHydroelectric power, while not a new technology, continues to play a vital role in renewable energy production. Large dams and smaller run-of-river projects provide reliable, clean electricity to millions of people worldwide.\n\nThe transition to renewable energy is not without challenges. Energy storage remains a critical issue, as renewable sources are often intermittent. However, advances in battery technology and grid management systems are helping to address these challenges.\n\nDespite the obstacles, the future of renewable energy looks promising. With continued technological innovation and policy support, renewable energy sources are expected to play an increasingly dominant role in meeting global energy needs.",
+      "groups": [
+        {
+          "instructions": "Questions 1-5: Choose the correct letter, A, B, C or D.",
+          "questionType": "multiple_choice",
+          "questions": [
+            {
+              "questionText": "What is the main reason for the growing importance of renewable energy?",
+              "options": [
+                "Decreasing costs of renewable technologies",
+                "Concerns about climate change and fossil fuel depletion",
+                "Government subsidies and incentives",
+                "Public demand for cleaner energy"
+              ],
+              "correctAnswer": "Concerns about climate change and fossil fuel depletion",
+              "orderIndex": 1
+            },
+            {
+              "questionText": "Which renewable energy source has become more accessible due to cost reductions?",
+              "options": [
+                "Wind energy",
+                "Solar energy",
+                "Hydroelectric power",
+                "Geothermal energy"
+              ],
+              "correctAnswer": "Solar energy",
+              "orderIndex": 2
+            },
+            {
+              "questionText": "Where are wind farms typically located?",
+              "options": [
+                "Only onshore",
+                "Only offshore",
+                "Both onshore and offshore",
+                "Only in mountainous regions"
+              ],
+              "correctAnswer": "Both onshore and offshore",
+              "orderIndex": 3
+            },
+            {
+              "questionText": "What is the main challenge mentioned for renewable energy?",
+              "options": [
+                "High initial costs",
+                "Energy storage",
+                "Public resistance",
+                "Limited availability"
+              ],
+              "correctAnswer": "Energy storage",
+              "orderIndex": 4
+            },
+            {
+              "questionText": "What is expected to help address energy storage challenges?",
+              "options": [
+                "Increased government funding",
+                "Advances in battery technology and grid management",
+                "Public awareness campaigns",
+                "International cooperation"
+              ],
+              "correctAnswer": "Advances in battery technology and grid management",
+              "orderIndex": 5
+            }
+          ]
+        },
+        {
+          "instructions": "Questions 6-10: Do the following statements agree with the information given in the reading passage? Write TRUE if the statement agrees with the information, FALSE if the statement contradicts the information, or NOT GIVEN if there is no information on this.",
+          "questionType": "true_false_not_given",
+          "questions": [
+            {
+              "questionText": "Solar panels are now commonly installed on rooftops in many countries.",
+              "correctAnswer": "TRUE",
+              "orderIndex": 6
+            },
+            {
+              "questionText": "Denmark and Germany have the strongest wind resources in the world.",
+              "correctAnswer": "NOT GIVEN",
+              "orderIndex": 7
+            },
+            {
+              "questionText": "Hydroelectric power is a relatively new technology.",
+              "correctAnswer": "FALSE",
+              "orderIndex": 8
+            },
+            {
+              "questionText": "All renewable energy sources are intermittent.",
+              "correctAnswer": "FALSE",
+              "orderIndex": 9
+            },
+            {
+              "questionText": "The future of renewable energy depends entirely on technological innovation.",
+              "correctAnswer": "FALSE",
+              "orderIndex": 10
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "all_answers": [
+    {
+      "question_number": "1",
+      "answer": "B",
+      "order_index": 1
+    },
+    {
+      "question_number": "2",
+      "answer": "B",
+      "order_index": 2
+    },
+    {
+      "question_number": "3",
+      "answer": "C",
+      "order_index": 3
+    },
+    {
+      "question_number": "4",
+      "answer": "B",
+      "order_index": 4
+    },
+    {
+      "question_number": "5",
+      "answer": "B",
+      "order_index": 5
+    },
+    {
+      "question_number": "6",
+      "answer": "TRUE",
+      "order_index": 6
+    },
+    {
+      "question_number": "7",
+      "answer": "NOT GIVEN",
+      "order_index": 7
+    },
+    {
+      "question_number": "8",
+      "answer": "FALSE",
+      "order_index": 8
+    },
+    {
+      "question_number": "9",
+      "answer": "FALSE",
+      "order_index": 9
+    },
+    {
+      "question_number": "10",
+      "answer": "FALSE",
+      "order_index": 10
+    }
+  ]
+} 

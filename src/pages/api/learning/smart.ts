@@ -1,12 +1,20 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { db } from '@/lib/mysql';
 
-// Hàm lấy ngày hiện tại theo GMT+7
+// Hàm lấy ngày hiện tại theo múi giờ Việt Nam (GMT+7)
 function getTodayStrGMT7() {
   const now = new Date();
-  // GMT+7 offset = 7*60 = 420 phút
-  const gmt7 = new Date(now.getTime() + (7 * 60 - now.getTimezoneOffset()) * 60000);
-  return gmt7.toISOString().slice(0, 10);
+  
+  // Tạo ngày theo múi giờ Việt Nam (GMT+7)
+  // Sử dụng Intl.DateTimeFormat để đảm bảo chính xác
+  const vietnamDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(now);
+  
+  return vietnamDate; // Định dạng yyyy-mm-dd
 }
 
 // Hàm tìm ngày gần nhất có từ vựng cần học
@@ -73,8 +81,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const mode = req.query.mode as string || 'both';
   const today = getTodayStrGMT7();
   
+  console.log(`=== SMART LEARNING API DEBUG ===`);
   console.log(`Ngày hiện tại (GMT+7): ${today}`);
   console.log(`Mode: ${mode}`);
+  console.log(`Server timezone offset: ${new Date().getTimezoneOffset()} minutes`);
+  console.log(`Current UTC time: ${new Date().toISOString()}`);
+  console.log(`=== END SMART LEARNING API DEBUG ===`);
 
   try {
     // Lấy tất cả các từ của người dùng
@@ -100,7 +112,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Duyệt qua từng từ và kiểm tra ngày ôn tập
     for (const term of terms as any[]) {
       // Log giá trị thực tế lấy từ database
-      console.log(`TERM ID: ${term.id}, vocab: ${term.vocab}, review_time_en (raw):`, term.review_time_en, ', review_time_vi (raw):', term.review_time_vi);
       // Chuẩn hóa định dạng ngày từ DB để so sánh
       // Format của review_time_en/vi từ DB có thể là yyyy-mm-dd hoặc dạng Date object
       let reviewTimeEn = null;
@@ -147,8 +158,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Lấy từ có ngày ôn tập đúng bằng ngày hiện tại HOẶC là từ mới (level_en = 0)
       if ((mode === 'both' || mode === 'en_to_vi') && 
           (reviewTimeEn === today || levelEn === 0)) {
-        console.log(`Thêm lượt học en_to_vi cho từ "${term.vocab}" (ID: ${term.id}), level_en=${levelEn}, review_time_en=${reviewTimeEn}, matches today=${reviewTimeEn === today}`);
-        learningList.push({
+            learningList.push({
           term,
           mode: 'en_to_vi'
         });
@@ -162,7 +172,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Lấy từ có ngày ôn tập đúng bằng ngày hiện tại HOẶC là từ mới (level_vi = 0)
       if ((mode === 'both' || mode === 'vi_to_en') && 
           (reviewTimeVi === today || levelVi === 0)) {
-        console.log(`Thêm lượt học vi_to_en cho từ "${term.vocab}" (ID: ${term.id}), level_vi=${levelVi}, review_time_vi=${reviewTimeVi}, matches today=${reviewTimeVi === today}`);
         learningList.push({
           term,
           mode: 'vi_to_en'
@@ -174,15 +183,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    console.log('Chi tiết từng từ vựng:', detailedLog);
-    console.log(`Số lượng từ cần học: ${termsToLearn.length}, số lượt học: ${learningList.length}`);
-    console.log('Danh sách ID từ vựng cần học:', termsToLearn);
-    console.log('Danh sách lượt học:', learningList.map(item => ({
-      id: item.term.id,
-      vocab: item.term.vocab,
-      mode: item.mode,
-      level: item.mode === 'en_to_vi' ? item.term.level_en : item.term.level_vi
-    })));
+
 
     // Nếu không có từ nào cần học hôm nay, tìm ngày gần nhất
     if (learningList.length === 0) {

@@ -27,7 +27,7 @@ const VocabListPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'alphabetical'>('newest');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'alphabetical' | 'lowest_level'>('newest');
   const [levelFilter, setLevelFilter] = useState<number | 'all'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const router = useRouter();
@@ -43,22 +43,153 @@ const VocabListPage: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const loaderRef = useRef<HTMLDivElement>(null);
   const [isFirstLoading, setIsFirstLoading] = useState(true);
+  const [cambridgeAudioLoading, setCambridgeAudioLoading] = useState<string | null>(null); // lưu từ đang loading
+  const [aiTranslateLoading, setAiTranslateLoading] = useState<string | null>(null); // lưu từ đang AI translate
+  const [cloudTranslateLoading, setCloudTranslateLoading] = useState<string | null>(null); // lưu từ đang cloud translate
+
+  // Hàm chọn giọng đọc tốt nhất
+  const getBestVoice = () => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return null;
+    
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length === 0) return null;
+    
+    // Ưu tiên giọng tiếng Anh chất lượng cao
+    const preferredVoices = [
+      'Google UK English Female',
+      'Google UK English Male', 
+      'Google US English Female',
+      'Google US English Male',
+      'Microsoft David - English (United States)',
+      'Microsoft Zira - English (United States)',
+      'Samantha',
+      'Alex',
+      'Daniel'
+    ];
+    
+    // Tìm giọng ưu tiên
+    for (const voiceName of preferredVoices) {
+      const voice = voices.find(v => v.name === voiceName);
+      if (voice) return voice;
+    }
+    
+    // Nếu không có giọng ưu tiên, tìm giọng tiếng Anh bất kỳ
+    const englishVoice = voices.find(v => 
+      v.lang.startsWith('en') && v.localService
+    );
+    if (englishVoice) return englishVoice;
+    
+    // Cuối cùng dùng giọng đầu tiên
+    return voices[0];
+  };
+
+  // Hàm phát âm từ vựng
+  const speakWord = (word: string) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+      alert('Trình duyệt của bạn không hỗ trợ phát âm');
+      return;
+    }
+    
+    // Dừng giọng đọc hiện tại nếu có
+    window.speechSynthesis.cancel();
+    
+    const utterance = new window.SpeechSynthesisUtterance(word);
+    const voice = getBestVoice();
+    
+    if (voice) {
+      utterance.voice = voice;
+    }
+    
+    // Cài đặt chất lượng giọng đọc
+    utterance.lang = 'en-US';
+    utterance.rate = 0.9; // Tốc độ chậm hơn một chút
+    utterance.pitch = 1.0; // Pitch bình thường
+    utterance.volume = 1.0; // Âm lượng tối đa
+    
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Hàm phát âm từ Cambridge audio (chuẩn xác qua API backend)
+  const speakCambridgeAudio = async (word: string) => {
+    setCambridgeAudioLoading(word);
+    try {
+      const res = await fetch(`/api/cambridge-audio?word=${encodeURIComponent(word)}`);
+      const data = await res.json();
+      if (!res.ok || !data.audioUrl) {
+        alert('Không tìm thấy file audio Cambridge cho từ này!');
+        setCambridgeAudioLoading(null);
+        return;
+      }
+      const audio = new Audio(data.audioUrl);
+      audio.play();
+    } catch (err) {
+      alert('Lỗi khi lấy audio Cambridge!');
+    }
+    setTimeout(() => setCambridgeAudioLoading(null), 1000);
+  };
+
+  // Hàm dịch bằng AI (Gemini API)
+  const translateWithAI = async (word: string) => {
+    setAiTranslateLoading(word);
+    try {
+      const res = await fetch('/api/admin/translate-gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ englishText: word })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert('Lỗi khi dịch AI: ' + (data.error || 'Không thể dịch'));
+        setAiTranslateLoading(null);
+        return;
+      }
+      const message = `Từ: ${word}\nNghĩa: ${data.translatedText}\nLoại từ: ${data.partOfSpeech || 'Không xác định'}`;
+      alert(message);
+    } catch (err) {
+      alert('Lỗi khi dịch AI!');
+    }
+    setTimeout(() => setAiTranslateLoading(null), 1000);
+  };
+
+  // Hàm dịch bằng Cloud Translation API
+  const translateWithCloud = async (word: string) => {
+    setCloudTranslateLoading(word);
+    try {
+      const res = await fetch('/api/admin/translate-gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ englishText: word })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert('Lỗi khi dịch: ' + (data.error || 'Không thể dịch'));
+        setCloudTranslateLoading(null);
+        return;
+      }
+      const message = `Từ: ${word}\nNghĩa: ${data.translatedText}`;
+      alert(message);
+    } catch (err) {
+      alert('Lỗi khi dịch!');
+    }
+    setTimeout(() => setCloudTranslateLoading(null), 1000);
+  };
 
   // Hàm fetch dữ liệu từ API
-  const fetchVocab = async (reset = false) => {
+  const fetchVocab = async (reset = false, search = searchTerm) => {
     if (reset) setIsFirstLoading(true);
     setLoadingMore(true);
     try {
-      const res = await fetch(`/api/vocab?limit=${PAGE_SIZE}&offset=${reset ? 0 : offset}`);
+      const res = await fetch(`/api/vocab?limit=${PAGE_SIZE}&offset=${reset ? 0 : offset}&search=${encodeURIComponent(search)}`);
       const data = await res.json();
       if (reset) {
         setVocabList(data.data);
         setOffset(data.data.length);
         setHasMore(data.data.length < data.total);
       } else {
-        setVocabList(prev => [...prev, ...data.data]);
-        setOffset(offset + data.data.length);
-        setHasMore(vocabList.length + data.data.length < data.total);
+        const newList = [...vocabList, ...data.data];
+        setVocabList(newList);
+        setOffset(newList.length);
+        setHasMore(newList.length < data.total);
       }
       setTotal(data.total);
     } catch (e) {
@@ -92,19 +223,10 @@ const VocabListPage: React.FC = () => {
   // Đảm bảo vocabList luôn là mảng
   const safeVocabList = Array.isArray(vocabList) ? vocabList : [];
 
-  // Sắp xếp từ vựng
-  const sortedTerms = [...safeVocabList].sort((a, b) => {
-    switch (sortBy) {
-      case 'newest':
-        return new Date(b.time_added).getTime() - new Date(a.time_added).getTime();
-      case 'oldest':
-        return new Date(a.time_added).getTime() - new Date(b.time_added).getTime();
-      case 'alphabetical':
-        return a.vocab.localeCompare(b.vocab);
-      default:
-        return 0;
-    }
-  });
+  // KHÔNG sort lại khi đã phân trang từ backend!
+  // const sortedTerms = [...safeVocabList].sort(...)
+  // Thay bằng:
+  const sortedTerms = safeVocabList;
 
   // Lọc từ vựng theo search term và level
   const filteredTerms = sortedTerms.filter(term => {
@@ -113,13 +235,25 @@ const VocabListPage: React.FC = () => {
                               term.level_en === levelFilter || 
                               term.level_vi === levelFilter;
     
-    return matchesLevelFilter && 
-           (term.vocab.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            ((term.meanings?.[0] || term.vietnamese || '').toLowerCase().includes(searchTerm.toLowerCase())));
+    const matchesSearch = !searchTerm || 
+                         term.vocab.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         ((term.meanings?.[0] || term.vietnamese || '').toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    return matchesLevelFilter && matchesSearch;
   });
 
   // Loại bỏ phân trang để hiển thị tất cả từ vựng
   const termsToDisplay = filteredTerms;
+  
+  // Debug log
+  console.log('=== VOCAB FILTERING DEBUG ===');
+  console.log('safeVocabList length:', safeVocabList.length);
+  console.log('sortedTerms length:', sortedTerms.length);
+  console.log('filteredTerms length:', filteredTerms.length);
+  console.log('termsToDisplay length:', termsToDisplay.length);
+  console.log('searchTerm:', searchTerm);
+  console.log('levelFilter:', levelFilter);
+  console.log('=== END VOCAB FILTERING DEBUG ===');
 
   // Xử lý tìm kiếm
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -128,7 +262,7 @@ const VocabListPage: React.FC = () => {
 
   // Xử lý sắp xếp
   const handleSort = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSortBy(e.target.value as 'newest' | 'oldest' | 'alphabetical');
+    setSortBy(e.target.value as 'newest' | 'oldest' | 'alphabetical' | 'lowest_level');
   };
 
   // Xử lý lọc theo level
@@ -391,6 +525,7 @@ const VocabListPage: React.FC = () => {
               <option value="newest">Mới nhất</option>
               <option value="oldest">Cũ nhất</option>
               <option value="alphabetical">A-Z</option>
+              <option value="lowest_level">Level thấp nhất trước</option>
             </select>
           </div>
           
@@ -420,7 +555,7 @@ const VocabListPage: React.FC = () => {
         
         {/* Hiển thị kết quả tìm kiếm */}
         <p className="text-gray-400 mb-6">
-          {filteredTerms.length} từ được tìm thấy
+          {termsToDisplay.length} từ được tìm thấy
           {searchTerm && ` với từ khóa "${searchTerm}"`}
           {levelFilter !== 'all' && ` và cấp độ ${levelFilter}`}
         </p>
@@ -437,7 +572,7 @@ const VocabListPage: React.FC = () => {
                     checked={selectedTerms.length === termsToDisplay.length && termsToDisplay.length > 0}
                     onChange={(e) => {
                       if (e.target.checked) {
-                        setSelectedTerms(termsToDisplay);
+                        setSelectedTerms([...termsToDisplay]);
                       } else {
                         setSelectedTerms([]);
                       }
@@ -515,7 +650,41 @@ const VocabListPage: React.FC = () => {
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <div className="text-lg font-semibold text-gray-50">{term.vocab}</div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-lg font-semibold text-gray-300">{term.vocab}</span>
+                        <button
+                          type="button"
+                          title="Cambridge Dictionary"
+                          onClick={() => {
+                            const cambridgeUrl = `https://dictionary.cambridge.org/dictionary/english/${encodeURIComponent(term.vocab.toLowerCase())}`;
+                            window.open(cambridgeUrl, '_blank');
+                          }}
+                          className="ml-1 p-1 rounded hover:bg-secondary-200 focus:outline-none"
+                        >
+                          {/* Icon Cambridge Dictionary */}
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-secondary-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                        </button>
+                        {/* Nút Cambridge Audio */}
+                        <button
+                          type="button"
+                          title="Cambridge Audio (US)"
+                          onClick={() => speakCambridgeAudio(term.vocab)}
+                          className="ml-1 p-1 rounded hover:bg-warning-200 focus:outline-none"
+                        >
+                          {cambridgeAudioLoading === term.vocab ? (
+                            <svg className="animate-spin h-4 w-4 text-warning-200" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                            </svg>
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-warning-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-lg font-semibold text-gray-300">{term.meanings?.[0] || term.vietnamese || ''}</div> 
@@ -545,7 +714,7 @@ const VocabListPage: React.FC = () => {
               ) : (
                 <tr>
                   <td colSpan={7} className="px-4 py-4 text-center text-gray-400">
-                    Không tìm thấy từ vựng nào
+                    {isFirstLoading ? 'Đang tải...' : 'Không tìm thấy từ vựng nào'}
                   </td>
                 </tr>
               )}

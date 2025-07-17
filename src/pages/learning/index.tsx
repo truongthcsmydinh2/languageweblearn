@@ -46,6 +46,14 @@ const LearningPage = () => {
       route: '/learning/smart'
     },
     {
+      id: 'vocab-example',
+      title: 'Học từ vựng qua ví dụ',
+      description: 'Học từ vựng thông qua việc dịch hoặc tạo câu ví dụ sử dụng từ vựng',
+      icon: '📝',
+      color: 'bg-primary-200',
+      route: '/learning/vocab-selection'
+    },
+    {
       id: 'exam',
       title: 'Bài kiểm tra',
       description: 'Kiểm tra kiến thức với bài thi có thời gian và điểm số',
@@ -129,6 +137,9 @@ const LearningPage = () => {
               case 'smart':
                 gradient = 'bg-gradient-to-br from-gray-700 to-primary-200'; // Xanh mint pastel
                 break;
+              case 'vocab-example':
+                gradient = 'bg-gradient-to-br from-blue-700 to-primary-200'; // Xanh mint pastel với nền xanh dương
+                break;
               case 'exam':
                 gradient = 'bg-gradient-to-br from-gray-700 to-secondary-200'; // Tím lavender pastel
                 break;
@@ -187,4 +198,4 @@ const LearningPage = () => {
   );
 };
 
-export default LearningPage; 
+export default LearningPage;

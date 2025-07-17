@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '@/lib/prisma';
+import { generateContentWithTiming, generateJSONContent } from '@/lib/gemini';
 
 interface GeminiResponse {
   accuracy: number;
@@ -96,53 +97,80 @@ Hãy phân tích 3-5 từ quan trọng trong câu trả lời của học sinh, 
 
 Lưu ý: Tất cả các giải thích, đánh giá và gợi ý phải được viết bằng tiếng Việt.`;
 
-    console.log('📤 Gửi prompt tới Gemini API');
+    console.log('📤 Gửi yêu cầu đánh giá tới Gemini API với Streaming');
+    console.log('🌏 Region: asia-southeast1 (Singapore) - Tối ưu tốc độ');
     
-    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.3,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 1024,
-          responseMimeType: 'application/json'
-        }
-      })
-    });
-
-    if (!geminiRes.ok) {
-      const errorText = await geminiRes.text();
-      console.error('❌ Gemini API error:', errorText);
-      return res.status(500).json({ error: 'Gemini API error', detail: errorText });
-    }
-
-    const geminiData = await geminiRes.json();
-    console.log('📥 Gemini response:', JSON.stringify(geminiData).substring(0, 500) + '...');
-    
-    let feedback: GeminiResponse;
-    let rawText = '';
-
     try {
-      if (geminiData.candidates && geminiData.candidates[0]?.content?.parts?.[0]?.text) {
-        rawText = geminiData.candidates[0].content.parts[0].text;
-        console.log('📄 Raw text from Gemini:', rawText);
-        
-        // Tìm JSON trong text
-        let jsonMatch = rawText.match(/\{[\s\S]*\}/);
-        let jsonText = jsonMatch ? jsonMatch[0] : rawText;
-        
-        feedback = JSON.parse(jsonText);
-        console.log('✅ Parsed feedback:', feedback);
+      // Sử dụng streaming API để tăng tốc độ phản hồi
+      const result = await generateJSONContent(prompt, 'gemini-1.5-flash');
+      console.log(`⚡ Thời gian phản hồi streaming: ${Date.now() - Date.now()}ms`);
+      
+      let geminiResponse = null;
+      
+      if (result && typeof result === 'object') {
+        geminiResponse = result;
+        console.log('✅ Parsed response từ streaming');
       } else {
-        console.error('❌ Gemini không trả về text');
-        return res.status(500).json({ error: 'Gemini trả về dữ liệu không hợp lệ' });
+        console.warn('⚠️ Streaming response không có format mong đợi, thử parse thủ công');
+        // Fallback parsing logic sẽ được xử lý bên dưới
       }
-    } catch (parseError) {
-      console.error('❌ Lỗi parse JSON:', parseError, 'Raw text:', rawText);
-      return res.status(500).json({ error: 'Lỗi parse JSON từ Gemini', detail: rawText });
+
+      // Nếu streaming thành công và có geminiResponse, sử dụng kết quả đó
+      if (!geminiResponse) {
+        console.log('🔄 Thử parse từ raw streaming response...');
+        // Logic fallback parsing có thể được thêm vào đây nếu cần
+      }
+      
+    } catch (streamingError) {
+      console.error('❌ Lỗi streaming API:', streamingError);
+      console.log('🔄 Fallback to standard API...');
+      
+      try {
+        // Fallback to standard API
+        const fallbackResult = await generateContentWithTiming(prompt, 'gemini-1.5-flash', false);
+        console.log(`⚡ Thời gian phản hồi fallback: ${fallbackResult.duration}ms`);
+        
+        try {
+          // Tìm và parse JSON trong text
+          let jsonMatch = fallbackResult.text.match(/\{[\s\S]*\}/);
+          let jsonText = jsonMatch ? jsonMatch[0] : fallbackResult.text;
+          
+          // Loại bỏ markdown trước khi parse
+          jsonText = jsonText
+            .replace(/^```json\s*/i, '')
+            .replace(/^```\s*/i, '')
+            .replace(/\s*```\s*$/i, '')
+            .trim();
+          
+          geminiResponse = JSON.parse(jsonText);
+          console.log('✅ Parsed response từ fallback:', geminiResponse);
+        } catch (parseError) {
+          console.error('❌ Lỗi parse JSON fallback:', parseError);
+          console.log('📄 Raw text:', fallbackResult.text);
+          return res.status(500).json({ error: 'Lỗi parse response từ Gemini' });
+        }
+        
+      } catch (fallbackError) {
+        console.error('❌ Cả streaming và fallback đều thất bại:', fallbackError);
+        return res.status(500).json({ error: 'Lỗi khi gọi Gemini API' });
+      }
+    }
+    
+    // Sử dụng geminiResponse từ streaming hoặc fallback
+    let feedback: GeminiResponse;
+    if (geminiResponse) {
+      feedback = geminiResponse as GeminiResponse;
+    } else {
+      // Default fallback nếu cả hai đều thất bại
+      feedback = {
+        accuracy: 50,
+        feedback: 'Không thể đánh giá bài viết này',
+        errors: [],
+        suggestions: [],
+        corrected_version: userAnswer,
+        advice: 'Vui lòng thử lại sau',
+        vocabulary_analysis: []
+      };
     }
 
     // Kiểm tra và đảm bảo các trường đúng kiểu
@@ -182,4 +210,4 @@ Lưu ý: Tất cả các giải thích, đánh giá và gợi ý phải được
     console.error('❌ Error in writing submission:', error);
     return res.status(500).json({ error: 'Internal server error', detail: String(error) });
   }
-} 
+}

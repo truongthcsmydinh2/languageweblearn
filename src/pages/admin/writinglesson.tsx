@@ -149,7 +149,7 @@ const AdminWritingLesson = () => {
     setError('');
 
     try {
-      const response = await fetch('/api/admin/translate-gemini', {
+      const response = await fetch('/api/admin/translate-vietnamese', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
