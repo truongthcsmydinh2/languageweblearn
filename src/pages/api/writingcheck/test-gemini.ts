@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { generateContentWithTiming, generateJSONContent } from '@/lib/gemini';
+import { safeJsonParse } from '@/utils/jsonUtils';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -58,11 +59,11 @@ Hãy trả về kết quả theo định dạng JSON sau:
         const fallbackResult = await generateContentWithTiming(prompt, 'gemini-1.5-flash', false);
         console.log(`⚡ Thời gian phản hồi fallback: ${fallbackResult.duration}ms`);
         
-        try {
-          // Tìm và parse JSON trong text
-          let jsonMatch = fallbackResult.text.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            evaluation = JSON.parse(jsonMatch[0]);
+        // Tìm và parse JSON trong text
+        let jsonMatch = fallbackResult.text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          evaluation = safeJsonParse(jsonMatch[0]);
+          if (evaluation) {
             console.log('✅ Parsed evaluation từ fallback:', evaluation);
           } else {
             // Fallback nếu không parse được JSON
@@ -75,8 +76,8 @@ Hãy trả về kết quả theo định dạng JSON sau:
               advice: 'Hãy kiểm tra lại ngữ pháp và từ vựng'
             };
           }
-        } catch (parseError) {
-          console.error('❌ Lỗi parse JSON fallback:', parseError);
+        } else {
+          console.warn('❌ Không tìm thấy JSON hợp lệ trong fallback response');
           evaluation = {
             score: 5,
             feedback: fallbackResult.text || 'Không thể đánh giá',

@@ -1,0 +1,112 @@
+/* Hiệu ứng đánh máy */
+.typingEffect {
+  display: inline-block;
+  position: relative;
+  line-height: 1.6;
+}
+
+.typingCursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.2em;
+  background: linear-gradient(to bottom, #6366f1, #8b5cf6);
+  margin-left: 2px;
+  animation: blink 1.2s ease-in-out infinite;
+  vertical-align: middle;
+  border-radius: 1px;
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.3);
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; transform: scaleY(1); }
+  51%, 100% { opacity: 0.3; transform: scaleY(0.8); }
+}
+
+/* Hiệu ứng highlight cho từng từ mới */
+.newWord {
+  animation: highlight 0.8s ease-out;
+  display: inline-block;
+}
+
+@keyframes highlight {
+  0% { 
+    background-color: rgba(99, 102, 241, 0.3);
+    transform: scale(1.05);
+    color: #6366f1;
+  }
+  50% {
+    background-color: rgba(99, 102, 241, 0.15);
+    transform: scale(1.02);
+  }
+  100% { 
+    background-color: transparent;
+    transform: scale(1);
+    color: inherit;
+  }
+}
+
+/* Hiệu ứng fade-in mượt mà cho text mới */
+.fadeIn {
+  animation: fadeInText 0.3s ease-out;
+}
+
+@keyframes fadeInText {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Hiệu ứng glow cho text đang streaming */
+.streaming {
+  position: relative;
+}
+
+.streaming::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.1), transparent);
+  animation: shimmer 2s infinite;
+  pointer-events: none;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Hiệu ứng cho container streaming */
+.streamingContainer {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.05), rgba(139, 92, 246, 0.05));
+  border: 1px solid rgba(99, 102, 241, 0.1);
+  transition: all 0.3s ease;
+}
+
+.streamingContainer:hover {
+  border-color: rgba(99, 102, 241, 0.2);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .typingCursor {
+    width: 1.5px;
+    margin-left: 1px;
+  }
+  
+  .streamingContainer {
+    padding: 8px 12px;
+  }
+}

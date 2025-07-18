@@ -203,6 +203,16 @@ Trả về kết quả dưới dạng JSON với cấu trúc sau:
             .replace(/\s*```\s*$/i, '')
             .trim();
           
+          // Loại bỏ các ký tự không mong muốn có thể gây lỗi JSON
+          jsonText = jsonText.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
+          
+          // Tìm JSON object đầu tiên hợp lệ
+          const jsonStart = jsonText.indexOf('{');
+          const jsonEnd = jsonText.lastIndexOf('}');
+          if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+            jsonText = jsonText.substring(jsonStart, jsonEnd + 1);
+          }
+          
           const parsed = JSON.parse(jsonText);
           
           if (parsed.examples && Array.isArray(parsed.examples)) {

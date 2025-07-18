@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '@/lib/prisma';
+import { safeJsonParse } from '@/utils/jsonUtils';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -68,8 +69,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         originalSentence: sub.original_sentence,
         score: sub.score,
         feedback: sub.feedback,
-        errors: JSON.parse(sub.errors),
-        suggestions: JSON.parse(sub.suggestions),
+        errors: safeJsonParse(sub.errors) || [],
+        suggestions: safeJsonParse(sub.suggestions) || [],
         correctedVersion: sub.corrected_version,
         advice: sub.advice,
         createdAt: sub.created_at,
@@ -103,4 +104,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.error('Error fetching submission history:', error);
     return res.status(500).json({ error: 'Lỗi server' });
   }
-} 
+}

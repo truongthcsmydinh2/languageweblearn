@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts/AuthContext';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import StreamingText from '@/components/common/StreamingText';
+import styles from '@/styles/TypingEffect.module.css';
+import { safeJsonParse } from '@/utils/jsonUtils';
 
 interface Word {
   id: string;
@@ -99,38 +102,87 @@ const ExampleLearningPage = () => {
 
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
+        let buffer = '';
+        let currentEvaluation = {
+          score: null as number | null,
+          feedback: '',
+          errors: [] as string[],
+          suggestions: [] as string[],
+          examples: [] as string[],
+          correctAnswer: ''
+        };
 
         if (reader) {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
 
-            const chunk = decoder.decode(value);
-            const lines = chunk.split('\n');
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6);
-                if (data === '[DONE]') {
-                  setIsStreaming(false);
-                  break;
-                }
-
-                try {
-                  const parsed = JSON.parse(data);
+            buffer += decoder.decode(value, { stream: true });
+            
+            // Xử lý từng dòng JSON hoàn chỉnh
+            let newlineIndex;
+            while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+              const line = buffer.substring(0, newlineIndex).trim();
+              buffer = buffer.substring(newlineIndex + 1);
+              
+              if (line && !line.startsWith('```')) {
+                const parsed = safeJsonParse(line);
+                if (parsed) {
                   
-                  if (parsed.type === 'chunk') {
-                    setStreamingText(parsed.accumulated);
-                    setChunkCount(parsed.chunkNumber);
-                  } else if (parsed.type === 'complete') {
-                    setEvaluationResult(parsed.result);
-                    setIsStreaming(false);
-                  } else if (parsed.type === 'error') {
-                    console.error('Streaming error:', parsed.message);
+                  if (parsed.e === 'start') {
+                    // Bắt đầu streaming
+                    setStreamingText('Đang nhận dữ liệu...');
+                  } else if (parsed.e === 'data') {
+                    // Xử lý dữ liệu streaming
+                    if (parsed.k === 'score') {
+                      currentEvaluation.score = parsed.v;
+                      setStreamingText(`Điểm số: ${parsed.v}/100`);
+                    } else if (parsed.k === 'feedback') {
+                      if (parsed.c) {
+                        // Thêm khoảng trắng giữa các từ nếu đã có nội dung
+                        const separator = currentEvaluation.feedback && !currentEvaluation.feedback.endsWith(' ') ? ' ' : '';
+                        currentEvaluation.feedback += separator + parsed.c;
+                        setStreamingText(`Phản hồi: ${currentEvaluation.feedback}`);
+                      }
+                    } else if (parsed.k === 'errors') {
+                      if (parsed.c) {
+                        // Xử lý errors như một chuỗi liên tục
+                        const currentErrors = currentEvaluation.errors;
+                const separator = currentErrors && !currentErrors.endsWith(' ') ? ' ' : '';
+                const newErrorText = currentErrors + separator + parsed.c;
+                currentEvaluation.errors = newErrorText;
+                setStreamingText(`Lỗi: ${currentEvaluation.errors}`);
+                      }
+                    } else if (parsed.k === 'suggestions') {
+                      if (parsed.c) {
+                        // Xử lý suggestions như một chuỗi liên tục
+                        const currentSuggestions = currentEvaluation.suggestions;
+                const separator = currentSuggestions && !currentSuggestions.endsWith(' ') ? ' ' : '';
+                const newSuggestionText = currentSuggestions + separator + parsed.c;
+                currentEvaluation.suggestions = newSuggestionText;
+                setStreamingText(`Gợi ý: ${currentEvaluation.suggestions}`);
+                      }
+                    } else if (parsed.k === 'correctAnswer') {
+                      if (parsed.c) {
+                        // Thêm khoảng trắng giữa các từ nếu đã có nội dung
+                        const separator = currentEvaluation.correctAnswer && !currentEvaluation.correctAnswer.endsWith(' ') ? ' ' : '';
+                        currentEvaluation.correctAnswer += separator + parsed.c;
+                        setStreamingText(`Đáp án đúng: ${currentEvaluation.correctAnswer}`);
+                      }
+                    }
+                    setChunkCount(prev => prev + 1);
+                  } else if (parsed.e === 'end') {
+                    // Kết thúc streaming
+                    setEvaluationResult({
+                      score: currentEvaluation.score || 0,
+                      feedback: currentEvaluation.feedback,
+                      errors: currentEvaluation.errors,
+                      suggestions: currentEvaluation.suggestions,
+                      examples: currentEvaluation.examples,
+                      correctAnswer: currentEvaluation.correctAnswer
+                    });
                     setIsStreaming(false);
                   }
-                } catch (parseError) {
-                  console.error('Error parsing SSE data:', parseError);
                 }
               }
             }
@@ -141,9 +193,20 @@ const ExampleLearningPage = () => {
         setIsStreaming(false);
       }
     } else {
-      // Sử dụng API thông thường cho chế độ translate
+      // Sử dụng streaming JSONL cho chế độ translate
       try {
         setEvaluating(true);
+        setIsStreaming(true);
+        setChunkCount(0);
+        setStreamingText('');
+        // Khởi tạo evaluationResult để hiển thị streaming
+        setEvaluationResult({
+          score: 0,
+          feedback: '',
+          errors: [],
+          suggestions: [],
+          correctAnswer: ''
+        });
         
         const response = await fetch('/api/learning/example/evaluate-translation', {
           method: 'POST',
@@ -159,15 +222,111 @@ const ExampleLearningPage = () => {
           }),
         });
 
-        if (response.ok) {
-          const result = await response.json();
-          setEvaluationResult(result);
+        if (response.ok && response.body) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          let tempResult = {
+            score: 0,
+            feedback: '',
+            errors: [],
+            suggestions: [],
+            correctAnswer: ''
+          };
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (line.trim()) {
+                setChunkCount(prev => prev + 1);
+                const data = safeJsonParse(line);
+                if (data) {
+                  
+                  if (data.e === 'start') {
+                     console.log('Streaming started');
+                   } else if (data.e === 'data') {
+                     if (data.k === 'score') {
+                       tempResult.score = data.v;
+                       // Cập nhật UI ngay lập tức
+                       setEvaluationResult({...tempResult});
+                     } else if (data.k === 'feedback') {
+                       if (data.c) {
+                         // Thêm khoảng trắng giữa các từ nếu đã có nội dung
+                         const separator = tempResult.feedback && !tempResult.feedback.endsWith(' ') ? ' ' : '';
+                         tempResult.feedback += separator + data.c;
+                       } else {
+                         tempResult.feedback = data.v;
+                       }
+                       // Cập nhật UI ngay lập tức
+                       setEvaluationResult({...tempResult});
+                     } else if (data.k === 'errors') {
+                       if (data.c) {
+                         // Xử lý errors như một chuỗi liên tục
+                         const currentErrors = tempResult.errors;
+                         const separator = currentErrors && !currentErrors.endsWith(' ') ? ' ' : '';
+                         const newErrorText = currentErrors + separator + data.c;
+                         tempResult.errors = [newErrorText];
+                       } else if (Array.isArray(data.v)) {
+                         tempResult.errors = data.v;
+                       } else if (typeof data.v === 'string') {
+                         tempResult.errors = [data.v];
+                       }
+                       // Cập nhật UI ngay lập tức
+                       setEvaluationResult({...tempResult});
+                     } else if (data.k === 'suggestions') {
+                       if (data.c) {
+                         // Xử lý suggestions như một chuỗi liên tục
+                         const currentSuggestions = tempResult.suggestions;
+                         const separator = currentSuggestions && !currentSuggestions.endsWith(' ') ? ' ' : '';
+                         const newSuggestionText = currentSuggestions + separator + data.c;
+                         tempResult.suggestions = [newSuggestionText];
+                       } else if (Array.isArray(data.v)) {
+                         tempResult.suggestions = data.v;
+                       } else if (typeof data.v === 'string') {
+                         tempResult.suggestions = [data.v];
+                       }
+                       // Cập nhật UI ngay lập tức
+                       setEvaluationResult({...tempResult});
+                     } else if (data.k === 'correctAnswer') {
+                       if (data.c) {
+                         // Thêm khoảng trắng giữa các từ nếu đã có nội dung
+                         const separator = tempResult.correctAnswer && !tempResult.correctAnswer.endsWith(' ') ? ' ' : '';
+                         tempResult.correctAnswer += separator + data.c;
+                       } else {
+                         tempResult.correctAnswer = data.v;
+                       }
+                       // Cập nhật UI ngay lập tức
+                       setEvaluationResult({...tempResult});
+                     }
+                  } else if (data.e === 'end') {
+                    console.log('Streaming completed');
+                    setIsStreaming(false);
+                    setEvaluating(false);
+                  }
+                } else {
+                  console.error('Error parsing JSON line:', 'Line:', line);
+                }
+              }
+            }
+          }
         } else {
           console.error('Error evaluating answer:', await response.text());
+          setIsStreaming(false);
+          setEvaluating(false);
         }
       } catch (error) {
         console.error('Error evaluating answer:', error);
+        setIsStreaming(false);
+        setEvaluating(false);
       } finally {
+        // Đảm bảo dừng streaming trong mọi trường hợp
+        setIsStreaming(false);
         setEvaluating(false);
       }
     }
@@ -278,17 +437,83 @@ const ExampleLearningPage = () => {
             </button>
           )}
           
-          {/* Hiển thị streaming text cho chế độ custom */}
-          {mode === 'custom' && isStreaming && (
-            <div className="mt-4 p-4 border rounded bg-gray-50">
-              <div className="flex items-center mb-2">
-                <div className="text-sm font-medium text-gray-600">Đang nhận phản hồi từ AI...</div>
+          {/* Hiển thị streaming text cho cả hai chế độ */}
+          {isStreaming && (
+            <div className={`mt-4 ${styles.streamingContainer}`}>
+              <div className="flex items-center mb-3">
+                <div className="text-sm font-medium text-gray-700">🤖 AI đang phân tích...</div>
                 <div className="ml-2 text-xs text-gray-500">({chunkCount} chunks)</div>
               </div>
-              <div className="text-sm text-gray-800 whitespace-pre-wrap">
-                {streamingText}
-                <span className="animate-pulse">|</span>
-              </div>
+              {mode === 'custom' && (
+                <div className="text-sm text-gray-800 whitespace-pre-wrap">
+                  <StreamingText 
+                    text={streamingText}
+                    speed={25}
+                    showCursor={true}
+                    enableSmoothing={true}
+                    highlightNewWords={true}
+                    className="text-gray-800"
+                  />
+                </div>
+              )}
+              {mode === 'translate' && evaluationResult && (
+                <div className="text-sm text-gray-800 space-y-3">
+                  {evaluationResult.score > 0 && (
+                    <div className="flex items-center">
+                      <strong className="text-blue-600 mr-2">📊 Điểm:</strong> 
+                      <span className="font-semibold text-lg">{evaluationResult.score}/100</span>
+                    </div>
+                  )}
+                  {evaluationResult.feedback && (
+                    <div>
+                      <strong className="text-green-600 block mb-1">💬 Nhận xét:</strong>
+                      <StreamingText 
+                        text={evaluationResult.feedback}
+                        speed={20}
+                        showCursor={true}
+                        enableSmoothing={true}
+                        className="text-gray-700"
+                      />
+                    </div>
+                  )}
+                  {evaluationResult.errors && (
+                    <div>
+                      <strong className="text-red-600 block mb-1">❌ Lỗi:</strong>
+                      <StreamingText 
+                        text={evaluationResult.errors}
+                        speed={20}
+                        showCursor={true}
+                        enableSmoothing={true}
+                        className="text-red-600"
+                      />
+                    </div>
+                  )}
+                  {evaluationResult.suggestions && (
+                    <div>
+                      <strong className="text-blue-600 block mb-1">💡 Gợi ý:</strong>
+                      <StreamingText 
+                        text={evaluationResult.suggestions}
+                        speed={20}
+                        showCursor={true}
+                        enableSmoothing={true}
+                        className="text-blue-600"
+                      />
+                    </div>
+                  )}
+                  {evaluationResult.correctAnswer && (
+                    <div>
+                      <strong className="text-purple-600 block mb-1">✅ Đáp án tham khảo:</strong>
+                      <StreamingText 
+                        text={evaluationResult.correctAnswer}
+                        speed={20}
+                        showCursor={true}
+                        enableSmoothing={true}
+                        className="text-purple-600 font-medium"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </form>
@@ -310,25 +535,17 @@ const ExampleLearningPage = () => {
               <p>{evaluationResult.feedback}</p>
             </div>
             
-            {evaluationResult.errors.length > 0 && (
+            {evaluationResult.errors && (
               <div className="mb-4">
                 <h3 className="font-medium mb-2">Lỗi:</h3>
-                <ul className="list-disc pl-5">
-                  {evaluationResult.errors.map((error, index) => (
-                    <li key={index} className="text-red-600">{error}</li>
-                  ))}
-                </ul>
+                <p className="text-red-600">{evaluationResult.errors}</p>
               </div>
             )}
             
-            {evaluationResult.suggestions.length > 0 && (
+            {evaluationResult.suggestions && (
               <div className="mb-4">
                 <h3 className="font-medium mb-2">Gợi ý:</h3>
-                <ul className="list-disc pl-5">
-                  {evaluationResult.suggestions.map((suggestion, index) => (
-                    <li key={index} className="text-blue-600">{suggestion}</li>
-                  ))}
-                </ul>
+                <p className="text-green-600">{evaluationResult.suggestions}</p>
               </div>
             )}
             

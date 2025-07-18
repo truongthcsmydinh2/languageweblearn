@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { generateContentStream } from '@/lib/gemini';
+import { safeJsonParse } from '@/utils/jsonUtils';
 
 interface EvaluationResult {
   score: number;
@@ -49,50 +50,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     // Tạo prompt cho Gemini API
     const prompt = `
-You are a teacher grade and give detail feedback for student
-Vocab: ${word}
-Meaning: ${meaning}
-Userinput: ${userAnswer}
+Bạn LÀ một giáo viên AI, chuyên chấm điểm và đưa ra phản hồi chi tiết. Trả về kết quả dưới dạng một chuỗi sự kiện JSONL (mỗi JSON trên một dòng mới).
 
-Requirement:
-1. Anser with Vietnamese
-1. Grade userinput 100 scale.
-2. Check grammar and accuracy.
-3. Check context.
-4. Highlight error.
-5. Suggest improvement.
-6. Provide example.
+**BỐI CẢNH:**
+- Từ vựng: "${word}"
+- Ý nghĩa: "${meaning}"
+- Câu của học sinh: "${userAnswer}"
 
-Return result as JSON with structure:
-{
-  "score": number (0-100),
-  "feedback": "detail feedback in Vietnamese",
-  "errors": ["error 1", "error 2", ...],
-  "suggestions": ["suggestion 1", "suggestion 2", ...],
-  "examples": ["example 1", "example 2", ...]
-}
+**YÊU CẦU (JSONL Stream):**
+Sử dụng các key: \`e\` (event), \`k\` (key), \`c\` (content/chunk), \`v\` (value).
+
+1.  **Bắt đầu:** Gửi ngay một sự kiện \`{"e": "start"}\`.
+2.  **Điểm số tính trên thang 1-100 (IMPORTANCE):** Gửi ngay điểm số bằng \`{"e": "data", "k": "score", "v": number}\`.
+3.  **Phản hồi (\`feedback\`):** Stream từng từ bằng \`{"e": "data", "k": "feedback", "c": "từng_từ_một"}\`.
+4.  **Lỗi sai (\`errors\`):** Stream từng từ bằng \`{"e": "data", "k": "errors", "c": "từng_từ_một"}\`. Nếu không có lỗi, gửi "Không có lỗi đáng kể" từng từ.
+5.  **Gợi ý (\`suggestions\`):** Stream từng từ bằng \`{"e": "data", "k": "suggestions", "c": "từng_từ_một"}\`.
+6.  **Ví dụ (\`examples\`):** Stream từng từ bằng \`{"e": "data", "k": "examples", "c": "từng_từ_một"}\`.
+7.  **Kết thúc:** Gửi một sự kiện \`{"e": "end"}\`.
+
+**QUAN TRỌNG:** Mỗi đối tượng JSON phải nằm trên một dòng riêng biệt. KHÔNG sử dụng markdown code block (dấu \`\`\`). Tuyệt đối không thêm bất kỳ ký tự nào sau dấu \`}\` của một đối tượng JSON trên cùng một dòng.
 `;
 
     console.log(`📤 [${requestId}] Bắt đầu streaming đánh giá từ Gemini API`);
     console.log(`🌏 [${requestId}] Region: asia-southeast1 (Singapore) - Streaming thực sự`);
     console.log(`📝 [${requestId}] Prompt length: ${prompt.length} characters`);
     
-    // Thiết lập SSE headers
-    console.log(`🔧 [${requestId}] Setting up SSE headers...`);
-    const sseHeaders = {
-      'Content-Type': 'text/event-stream',
+    // Thiết lập JSONL headers
+    console.log(`🔧 [${requestId}] Setting up JSONL headers...`);
+    const jsonlHeaders = {
+      'Content-Type': 'application/x-ndjson; charset=utf-8',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Cache-Control'
+      'Access-Control-Allow-Origin': '*'
     };
-    console.log(`📡 [${requestId}] SSE Headers:`, sseHeaders);
-    res.writeHead(200, sseHeaders);
-    console.log(`✅ [${requestId}] SSE headers set successfully`);
+    console.log(`📡 [${requestId}] JSONL Headers:`, jsonlHeaders);
+    res.writeHead(200, jsonlHeaders);
+    console.log(`✅ [${requestId}] JSONL headers set successfully`);
+    
+    // Gửi sự kiện bắt đầu
+    res.write(JSON.stringify({ e: 'start' }) + '\n');
 
     const startTime = Date.now();
-    let accumulatedText = '';
-    let chunkCount = 0;
     console.log(`⏱️ [${requestId}] Streaming started at: ${new Date(startTime).toISOString()}`);
     
     try {
@@ -101,154 +99,88 @@ Return result as JSON with structure:
       const streamResult = await generateContentStream(prompt, 'gemini-1.5-flash');
       console.log(`✅ [${requestId}] Stream connection established`);
       
-      let originalChunkCount = 0;
-      // Xử lý từng chunk dữ liệu ngay lập tức
-      console.log(`🔄 [${requestId}] Starting to process stream chunks...`);
+      let buffer = '';
+      let chunkCounter = 0;
+
       for await (const chunk of streamResult.stream) {
-        originalChunkCount++;
         const chunkText = chunk.text();
-        console.log(`📦 [${requestId}] Original Chunk ${originalChunkCount}: "${chunkText}" (${chunkText.length} chars)`);
+        console.log(`🔍 [${requestId}] RAW Gemini chunk:`, JSON.stringify(chunkText));
         
-        // Chia nhỏ chunk thành các phần nhỏ hơn để tạo hiệu ứng streaming
-        const words = chunkText.split(' ');
-        console.log(`✂️ [${requestId}] Split into ${words.length} words for streaming effect`);
+        buffer += chunkText;
         
-        for (let i = 0; i < words.length; i++) {
-          const wordChunk = words[i] + (i < words.length - 1 ? ' ' : '');
-          accumulatedText += wordChunk;
-          chunkCount++;
-          
-          // Gửi chunk nhỏ về client ngay lập tức qua SSE
-          const eventData = {
-            type: 'chunk',
-            data: wordChunk,
-            accumulated: accumulatedText,
-            chunkNumber: chunkCount,
-            timestamp: Date.now() - startTime
-          };
-          
-          const eventString = `data: ${JSON.stringify(eventData)}\n\n`;
-          res.write(eventString);
-          
-          // Flush ngay lập tức để client nhận được chunk
-          const hasFlush = 'flush' in res && typeof (res as any).flush === 'function';
-          if (hasFlush) {
-            (res as any).flush();
+        // Xử lý trường hợp Gemini trả về nhiều JSON trên cùng một dòng bằng cách chèn newline
+        // Đây là bước quan trọng để phòng trường hợp nhiều JSON object liền nhau
+        buffer = buffer.replace(/}\s*{/g, '}\n{');
+        console.log(`📋 [${requestId}] Buffer after processing:`, JSON.stringify(buffer));
+
+        let lines = buffer.split('\n');
+        
+        // Giữ lại dòng cuối (có thể chưa hoàn chỉnh) trong buffer
+        buffer = lines.pop() || '';
+        
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          if (trimmedLine === '') continue;
+
+          // Kiểm tra và bỏ qua mọi dòng định dạng markdown (```json, ```jsonl, ```)
+          // Logic này giúp làm sạch stream trước khi gửi về client.
+          if (trimmedLine.startsWith('```')) {
+            console.log(`🔄 [${requestId}] Skipping markdown wrapper: "${trimmedLine}"`);
+            continue; // Bỏ qua, không gửi dòng này về client
           }
           
-          console.log(`📤 [${requestId}] Sent Chunk ${chunkCount}: "${wordChunk}" (${wordChunk.length} chars, ${Date.now() - startTime}ms, flush: ${hasFlush})`);
-          
-          // Thêm delay để tạo hiệu ứng typing
-          await new Promise(resolve => setTimeout(resolve, 50));
+          chunkCounter++;
+          // Gửi dòng đã được làm sạch về client, mỗi dòng là một JSON object.
+          res.write(trimmedLine + '\n');
+
+          // Log để debug phía server
+          const jsonData = safeJsonParse(trimmedLine);
+          if (jsonData) {
+            if (jsonData.e === 'data' && jsonData.k === 'score') {
+              console.log(`🔢 [${requestId}] Streamed score: ${jsonData.v}`);
+            }
+          } else {
+            console.warn(`⚠️ [${requestId}] Chunk #${chunkCounter} is not valid JSON (server-side log only): "${trimmedLine}"`);
+          }
         }
       }
-      console.log(`🏁 [${requestId}] Stream processing completed. Original chunks: ${originalChunkCount}, Split chunks: ${chunkCount}`);
-      
-      // Xử lý kết quả cuối cùng
-      console.log(`🔄 [${requestId}] Parsing final JSON result...`);
-      console.log(`📊 [${requestId}] Accumulated text length: ${accumulatedText.length} characters`);
-      console.log(`📄 [${requestId}] Raw accumulated text:`, accumulatedText.substring(0, 200) + (accumulatedText.length > 200 ? '...' : ''));
-      
-      let finalResult: EvaluationResult;
-      
-      try {
-        // Loại bỏ markdown và parse JSON
-        console.log(`🧹 [${requestId}] Cleaning text for JSON parsing...`);
-        const cleanText = accumulatedText
-          .replace(/^```json\s*/i, '')
-          .replace(/^```\s*/i, '')
-          .replace(/\s*```\s*$/i, '')
-          .trim();
-        
-        console.log(`🧹 [${requestId}] Cleaned text length: ${cleanText.length}`);
-        console.log(`📄 [${requestId}] Cleaned text preview:`, cleanText.substring(0, 200) + (cleanText.length > 200 ? '...' : ''));
-        
-        console.log(`🔄 [${requestId}] Attempting JSON.parse...`);
-        const parsed = JSON.parse(cleanText);
-        console.log(`✅ [${requestId}] JSON parsed successfully:`, {
-          hasScore: 'score' in parsed,
-          hasFeedback: 'feedback' in parsed,
-          hasErrors: 'errors' in parsed,
-          hasSuggestions: 'suggestions' in parsed,
-          hasExamples: 'examples' in parsed
-        });
-        
-        finalResult = {
-          score: parsed.score || 0,
-          feedback: parsed.feedback || '',
-          errors: parsed.errors || [],
-          suggestions: parsed.suggestions || [],
-          examples: parsed.examples || []
-        };
-        
-        console.log(`✅ [${requestId}] Streaming hoàn thành: ${chunkCount} chunks, ${Date.now() - startTime}ms`);
-        console.log(`📊 [${requestId}] Final result:`, {
-          score: finalResult.score,
-          feedbackLength: finalResult.feedback.length,
-          errorsCount: finalResult.errors.length,
-          suggestionsCount: finalResult.suggestions.length,
-          examplesCount: finalResult.examples.length
-        });
-        
-      } catch (parseError) {
-        console.error(`❌ [${requestId}] Lỗi parse JSON:`, parseError);
-        console.log(`📄 [${requestId}] Full raw text for debugging:`, accumulatedText);
-        
-        finalResult = {
-          score: 50,
-          feedback: 'Lỗi parse response từ Gemini',
-          errors: ['Không thể phân tích kết quả'],
-          suggestions: [],
-          examples: []
-        };
-        console.log(`🔧 [${requestId}] Using fallback result due to parse error`);
+
+      // Xử lý phần còn lại trong buffer sau khi stream kết thúc
+      const finalTrimmedLine = buffer.trim();
+      if (finalTrimmedLine !== '') {
+        // Đảm bảo không gửi dòng markdown cuối cùng nếu có
+        if (!finalTrimmedLine.startsWith('```')) {
+          res.write(finalTrimmedLine + '\n');
+          console.log(`🔄 [${requestId}] Wrote final buffer content: "${finalTrimmedLine}"`);
+        } else {
+          console.log(`🔄 [${requestId}] Skipping final markdown wrapper: "${finalTrimmedLine}"`);
+        }
       }
-      
-      // Gửi kết quả cuối cùng
-      console.log(`📤 [${requestId}] Preparing final event data...`);
-      const finalEventData = {
-        type: 'complete',
-        result: finalResult,
-        totalChunks: chunkCount,
-        totalTime: Date.now() - startTime,
-        method: 'streaming'
-      };
-      
-      console.log(`📤 [${requestId}] Sending final result to client...`);
-      const finalEventString = `data: ${JSON.stringify(finalEventData)}\n\n`;
-      res.write(finalEventString);
-      console.log(`📤 [${requestId}] Final event sent, size: ${finalEventString.length} chars`);
-      
-      console.log(`🏁 [${requestId}] Sending [DONE] signal...`);
-      res.write('data: [DONE]\n\n');
-      console.log(`✅ [${requestId}] Stream completed successfully`);
+
+      const totalDuration = Date.now() - startTime;
+       console.log(`⏱️ [${requestId}] Total streaming and processing time: ${totalDuration}ms`);
+       
+       console.log(`✅ [${requestId}] Stream completed successfully`);
+       
+       res.end(); // Kết thúc response
+       console.log(`✅ [${requestId}] Stream completed and response ended.`);
       
     } catch (streamingError) {
       console.error(`❌ [${requestId}] Lỗi streaming:`, streamingError);
       console.error(`❌ [${requestId}] Stack trace:`, (streamingError as Error).stack);
       
-      // Gửi lỗi về client
-      const errorEventData = {
-        type: 'error',
-        error: 'Streaming failed',
-        message: String(streamingError),
-        timestamp: Date.now() - startTime
-      };
-      
-      console.log(`📤 [${requestId}] Sending error to client...`);
-      res.write(`data: ${JSON.stringify(errorEventData)}\n\n`);
-      res.write('data: [DONE]\n\n');
+      // Gửi lỗi về client theo format JSONL
+      if (!res.writableEnded) {
+        res.write(JSON.stringify({ e: 'data', k: 'feedback', c: 'Lỗi khi đánh giá' }) + '\n');
+        res.write(JSON.stringify({ e: 'end' }) + '\n');
+        res.end();
+      }
       console.log(`❌ [${requestId}] Error sent to client`);
     }
-    
-    console.log(`🔚 [${requestId}] Ending response...`);
-    res.end();
-    console.log(`✅ [${requestId}] Response ended successfully`);
     
   } catch (error) {
     console.error(`❌ [${requestId}] Critical error in streaming evaluation:`, error);
     console.error(`❌ [${requestId}] Error stack:`, (error as Error).stack);
-    console.log(`🔍 [${requestId}] Headers sent status: ${res.headersSent}`);
     
     // Gửi lỗi về client nếu chưa gửi headers
     if (!res.headersSent) {
@@ -256,17 +188,13 @@ Return result as JSON with structure:
       return res.status(500).json({ error: 'Internal server error', detail: String(error) });
     }
     
-    // Nếu đã gửi headers, gửi lỗi qua SSE
-    console.log(`📤 [${requestId}] Sending SSE error response (headers already sent)`);
-    const errorEventData = {
-      type: 'error',
-      error: 'Internal server error',
-      message: String(error)
-    };
-    
-    res.write(`data: ${JSON.stringify(errorEventData)}\n\n`);
-    res.write('data: [DONE]\n\n');
-    res.end();
+    // Nếu đã gửi headers, gửi lỗi qua JSONL
+    if (!res.writableEnded) {
+      console.log(`📤 [${requestId}] Sending JSONL error response (headers already sent)`);
+      res.write(JSON.stringify({ e: 'data', k: 'feedback', c: 'Lỗi máy chủ nội bộ' }) + '\n');
+      res.write(JSON.stringify({ e: 'end' }) + '\n');
+      res.end();
+    }
     console.log(`❌ [${requestId}] Critical error handled and response ended`);
   }
   console.log(`🏁 [${requestId}] API Handler completed`);

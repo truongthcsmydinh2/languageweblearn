@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
+import { safeJsonParse } from '@/utils/jsonUtils';
 
 const prisma = new PrismaClient();
 
@@ -40,7 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Xử lý meanings để đảm bảo format đúng
     const processedTerms = terms.map((term: any) => ({
       ...term,
-      meanings: term.meanings ? (typeof term.meanings === 'string' ? JSON.parse(term.meanings) : term.meanings) : [],
+      meanings: term.meanings ? (typeof term.meanings === 'string' ? safeJsonParse(term.meanings) || [] : term.meanings) : [],
       last_review_en: term.last_review_en ? Number(term.last_review_en) : 0,
       last_review_vi: term.last_review_vi ? Number(term.last_review_vi) : 0,
       created_at: term.created_at.toISOString(),

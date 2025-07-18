@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { generateContentWithTiming, generateJSONContent } from '@/lib/gemini';
+import { safeJsonParse } from '@/utils/jsonUtils';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -47,11 +48,11 @@ Ví dụ: {"vi": "bằng tốt nghiệp", "pos": "noun"}`;
     let partOfSpeech = '';
     
     // Parse JSON từ streaming response
-    try {
-      const jsonData = JSON.parse(result.text);
+    const jsonData = safeJsonParse(result.text);
+    if (jsonData) {
       translatedText = jsonData.vi || '';
       partOfSpeech = jsonData.pos || '';
-    } catch (parseError) {
+    } else {
       // Fallback: thử parse thủ công
       translatedText = result.text;
       console.warn('⚠️ Không parse được JSON, sử dụng text thô');
@@ -112,11 +113,11 @@ Ví dụ: {"vi": "bằng tốt nghiệp", "pos": "noun"}`;
       let translatedText = '';
       let partOfSpeech = '';
       
-      try {
-        const jsonData = JSON.parse(fallbackResult.text);
+      const jsonData = safeJsonParse(fallbackResult.text);
+      if (jsonData) {
         translatedText = jsonData.vi || '';
         partOfSpeech = jsonData.pos || '';
-      } catch {
+      } else {
         translatedText = fallbackResult.text;
       }
       

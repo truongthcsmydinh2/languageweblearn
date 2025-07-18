@@ -116,11 +116,21 @@ export async function generateJSONContent(
     // Parse JSON từ response
     try {
       // Loại bỏ markdown nếu có
-      const cleanText = text
+      let cleanText = text
         .replace(/^```json\s*/i, '')
         .replace(/^```\s*/i, '')
         .replace(/\s*```\s*$/i, '')
         .trim();
+      
+      // Loại bỏ các ký tự không mong muốn có thể gây lỗi JSON
+      cleanText = cleanText.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
+      
+      // Tìm JSON object đầu tiên hợp lệ
+      const jsonStart = cleanText.indexOf('{');
+      const jsonEnd = cleanText.lastIndexOf('}');
+      if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+        cleanText = cleanText.substring(jsonStart, jsonEnd + 1);
+      }
       
       return JSON.parse(cleanText);
     } catch (parseError) {
