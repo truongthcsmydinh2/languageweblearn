@@ -12,6 +12,7 @@
   "dependencies": {
     "@fontsource/be-vietnam-pro": "^5.2.6",
     "@fontsource/inter": "^5.2.6",
+    "@google-cloud/translate": "^9.2.0",
     "@google/generative-ai": "^0.24.0",
     "@heroicons/react": "^2.2.0",
     "@prisma/client": "^6.5.0",

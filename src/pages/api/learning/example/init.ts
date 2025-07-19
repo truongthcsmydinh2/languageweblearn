@@ -164,9 +164,10 @@ Trả về kết quả dưới dạng JSON với cấu trúc sau:
     let examples: Example[] = [];
     
     try {
+      const startTime = Date.now();
       // Sử dụng streaming API để tăng tốc độ phản hồi
       const result = await generateJSONContent(prompt, 'gemini-1.5-flash');
-      console.log(`⚡ Thời gian phản hồi streaming: ${Date.now() - Date.now()}ms`);
+      console.log(`⚡ Thời gian phản hồi streaming: ${Date.now() - startTime}ms`);
       
       if (result && result.examples && Array.isArray(result.examples)) {
         examples = result.examples;

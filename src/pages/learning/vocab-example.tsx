@@ -31,7 +31,7 @@ const VocabExamplePage = () => {
   const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [evaluating, setEvaluating] = useState(false);
-  const [mode, setMode] = useState<'translate' | 'custom'>('translate');
+  // Removed mode state - only using translate mode now
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const [chunkCount, setChunkCount] = useState(0);
@@ -39,6 +39,22 @@ const VocabExamplePage = () => {
   const [wordCount, setWordCount] = useState(10);
   const [selectedWords, setSelectedWords] = useState<string[]>([]);
   const answerInputRef = useRef<HTMLTextAreaElement>(null);
+  
+  // States for AI Q&A feature
+  const [showQASection, setShowQASection] = useState(false);
+  const [qaQuestion, setQaQuestion] = useState('');
+  const [qaResponse, setQaResponse] = useState('');
+  const [qaLoading, setQaLoading] = useState(false);
+  const [qaStreaming, setQaStreaming] = useState(false);
+  const qaInputRef = useRef<HTMLTextAreaElement>(null);
+  const [qaInputValue, setQaInputValue] = useState('');
+  
+  // States for translation feature
+  const [selectedText, setSelectedText] = useState('');
+  const [translationResult, setTranslationResult] = useState('');
+  const [showTranslation, setShowTranslation] = useState(false);
+  const [translationLoading, setTranslationLoading] = useState(false);
+  const [translationPosition, setTranslationPosition] = useState({ x: 0, y: 0 });
   
   // useEffect để xử lý query params và fetch data
   useEffect(() => {
@@ -107,7 +123,8 @@ const VocabExamplePage = () => {
       }
       
       console.log('Fetching words with URL:', url); // Debug log
-      
+      console.log('Firebase UID:', user?.uid || 'N/A'); // Debug log
+
       const response = await fetch(url, {
         headers: {
           'firebase_uid': user?.uid || ''
@@ -153,117 +170,9 @@ const VocabExamplePage = () => {
 
     const currentWord = words[currentWordIndex];
     
-    if (mode === 'custom') {
-      // Sử dụng streaming cho chế độ custom
-      try {
-        setIsStreaming(true);
-        setStreamingText('');
-        setChunkCount(0);
-        setEvaluationResult(null);
-        
-        const response = await fetch('/api/learning/example/evaluate-custom-stream', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'firebase_uid': user?.uid || '',
-          },
-          body: JSON.stringify({
-            word: currentWord.word,
-            meaning: currentWord.meaning,
-            userAnswer,
-          }),
-        });
+    // Sử dụng streaming cho chế độ translate
+    try {
 
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let currentEvaluation = {
-          score: null as number | null,
-          feedback: '',
-          errors: '',
-          suggestions: '',
-          examples: [] as string[],
-          correctAnswer: ''
-        };
-
-        if (reader) {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            
-            // Xử lý từng dòng JSON hoàn chỉnh
-            let newlineIndex;
-            while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
-              const line = buffer.substring(0, newlineIndex).trim();
-              buffer = buffer.substring(newlineIndex + 1);
-              
-              if (line && !line.startsWith('```')) {
-                const parsed = safeJsonParse(line);
-                if (parsed) {
-                  
-                  if (parsed.e === 'start') {
-                    // Bắt đầu streaming
-                    setStreamingText('Đang nhận dữ liệu...');
-                  } else if (parsed.e === 'data') {
-                    // Xử lý dữ liệu streaming
-                    if (parsed.k === 'score') {
-                      currentEvaluation.score = parsed.v;
-                      setStreamingText(`Điểm số: ${parsed.v}/100`);
-                    } else if (parsed.k === 'feedback') {
-                      if (parsed.c) {
-                        currentEvaluation.feedback += (currentEvaluation.feedback ? ' ' : '') + parsed.c;
-                        setStreamingText(`Phản hồi: ${currentEvaluation.feedback}`);
-                      }
-                    } else if (parsed.k === 'errors') {
-                      if (parsed.c) {
-                        currentEvaluation.errors += (currentEvaluation.errors ? ' ' : '') + parsed.c;
-                        setStreamingText(`Lỗi: ${currentEvaluation.errors}`);
-                      }
-                    } else if (parsed.k === 'suggestions') {
-                      if (parsed.c) {
-                        currentEvaluation.suggestions += (currentEvaluation.suggestions ? ' ' : '') + parsed.c;
-                        setStreamingText(`Gợi ý: ${currentEvaluation.suggestions}`);
-                      }
-                    } else if (parsed.k === 'correctAnswer') {
-                      if (parsed.c) {
-                        currentEvaluation.correctAnswer += (currentEvaluation.correctAnswer ? ' ' : '') + parsed.c;
-                        setStreamingText(`Đáp án đúng: ${currentEvaluation.correctAnswer}`);
-                      }
-                    }
-                    setChunkCount(prev => prev + 1);
-                  } else if (parsed.e === 'end') {
-                    // Kết thúc streaming
-                    setEvaluationResult({
-                      score: currentEvaluation.score || 0,
-                      feedback: currentEvaluation.feedback,
-                      errors: currentEvaluation.errors ? [currentEvaluation.errors] : [],
-                      suggestions: currentEvaluation.suggestions ? [currentEvaluation.suggestions] : [],
-                      examples: currentEvaluation.examples,
-                      correctAnswer: currentEvaluation.correctAnswer
-                    });
-                    setIsStreaming(false);
-                    setEvaluating(false);
-                  }
-                } else {
-                  console.error('Error parsing JSON line:', 'Line:', line);
-                }
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error in streaming evaluation:', error);
-        setIsStreaming(false);
-      }
-    } else {
-      // Sử dụng streaming cho chế độ translate
-      try {
         setEvaluating(true);
         setIsStreaming(true);
         setChunkCount(0);
@@ -424,7 +333,6 @@ const VocabExamplePage = () => {
         setIsStreaming(false);
         setEvaluating(false);
       }
-    }
   };
 
   const handleNext = () => {
@@ -432,6 +340,10 @@ const VocabExamplePage = () => {
       setCurrentWordIndex(currentWordIndex + 1);
       setUserAnswer('');
       setEvaluationResult(null);
+      // Reset Q&A state
+      handleResetQA();
+      // Reset translation state
+      closeTranslation();
       // Cập nhật tiến độ
       setProgress(((currentWordIndex + 1) / words.length) * 100);
       // Focus vào ô nhập liệu
@@ -444,21 +356,216 @@ const VocabExamplePage = () => {
     }
   };
 
-  const toggleMode = () => {
-    setMode(mode === 'translate' ? 'custom' : 'translate');
-    setUserAnswer('');
-    setEvaluationResult(null);
-    // Focus vào ô nhập liệu
-    setTimeout(() => {
-      answerInputRef.current?.focus();
-    }, 100);
-  };
+  // Removed toggleMode function - only using translate mode now
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return 'bg-green-500';
     if (score >= 60) return 'bg-yellow-500';
     return 'bg-red-500';
   };
+
+  const handleQASubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!qaInputValue.trim()) return;
+
+    const currentWord = words[currentWordIndex];
+    
+    try {
+      setQaLoading(true);
+      setQaStreaming(true);
+      setQaResponse('');
+      
+      const response = await fetch('/api/learning/example/qa-stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'firebase_uid': user?.uid || ''
+        },
+        body: JSON.stringify({
+          word: currentWord.word,
+          meaning: currentWord.meaning,
+          example: currentWord.example,
+          userAnswer,
+          evaluationResult,
+          question: qaInputValue,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let currentResponse = '';
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          
+          let newlineIndex;
+          while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+            const line = buffer.substring(0, newlineIndex).trim();
+            buffer = buffer.substring(newlineIndex + 1);
+            
+            if (line && !line.startsWith('```')) {
+              const parsed = safeJsonParse(line);
+              if (parsed) {
+                if (parsed.e === 'data' && parsed.k === 'response' && parsed.c) {
+                  currentResponse += parsed.c;
+                  setQaResponse(currentResponse);
+                } else if (parsed.e === 'end') {
+                  setQaStreaming(false);
+                  setQaLoading(false);
+                  setQaInputValue(''); // Reset input after successful submission
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error in Q&A:', error);
+      setQaStreaming(false);
+      setQaLoading(false);
+    }
+  };
+
+  const handleShowQA = () => {
+    setShowQASection(true);
+    setTimeout(() => {
+      qaInputRef.current?.focus();
+    }, 100);
+  };
+
+  const handleResetQA = () => {
+    setQaInputValue('');
+    setQaResponse('');
+    setShowQASection(false);
+    setQaLoading(false);
+    setQaStreaming(false);
+  };
+
+  // Translation functions
+  const handleTextSelection = () => {
+    const selection = window.getSelection();
+    const text = selection?.toString().trim();
+    
+    if (text && text.length > 0) {
+      // Check if selection is inside input/textarea elements
+      const range = selection?.getRangeAt(0);
+      const container = range?.commonAncestorContainer;
+      const parentElement = container?.nodeType === Node.TEXT_NODE ? container.parentElement : container as Element;
+      
+      // Don't show translation popup if selection is inside input/textarea
+      if (parentElement && (parentElement.closest('input') || parentElement.closest('textarea'))) {
+        return;
+      }
+      
+      setSelectedText(text);
+      
+      // Get selection position
+      const rect = range?.getBoundingClientRect();
+      
+      if (rect) {
+        setTranslationPosition({
+          x: rect.left + rect.width / 2,
+          y: rect.top - 10
+        });
+        setShowTranslation(true);
+      }
+    } else {
+      setShowTranslation(false);
+    }
+  };
+
+  const translateText = async (text: string, targetLang: 'en' | 'vi') => {
+    try {
+      setTranslationLoading(true);
+      
+      const response = await fetch('/api/translate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text,
+          targetLanguage: targetLang,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Translation failed');
+      }
+
+      const data = await response.json();
+      setTranslationResult(data.translatedText);
+    } catch (error) {
+      console.error('Translation error:', error);
+      setTranslationResult('Lỗi dịch thuật');
+    } finally {
+      setTranslationLoading(false);
+    }
+  };
+
+  const handleTranslateClick = (targetLang: 'en' | 'vi') => {
+    if (selectedText) {
+      translateText(selectedText, targetLang);
+    }
+  };
+
+  const closeTranslation = () => {
+    setShowTranslation(false);
+    setTranslationResult('');
+    setSelectedText('');
+    window.getSelection()?.removeAllRanges();
+  };
+
+  // Add event listeners for text selection
+  useEffect(() => {
+    let isSelecting = false;
+    
+    const handleMouseUp = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      // Don't handle text selection if clicking on input/textarea
+      if (target.closest('input') || target.closest('textarea')) {
+        return;
+      }
+      
+      isSelecting = true;
+      setTimeout(() => {
+        handleTextSelection();
+        // Reset flag after a short delay to allow popup to show
+        setTimeout(() => {
+          isSelecting = false;
+        }, 100);
+      }, 10);
+    };
+
+    const handleClickOutside = (e: MouseEvent) => {
+      // Don't close if we're in the middle of selecting text
+      if (isSelecting) {
+        return;
+      }
+      
+      const target = e.target as HTMLElement;
+      if (!target.closest('.translation-popup') && !target.closest('input') && !target.closest('textarea')) {
+        closeTranslation();
+      }
+    };
+
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('click', handleClickOutside);
+
+    return () => {
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -506,12 +613,6 @@ const VocabExamplePage = () => {
           <div>
             <span className="text-sm text-gray-500">Từ {currentWordIndex + 1}/{words.length}</span>
           </div>
-          <button
-            onClick={toggleMode}
-            className="text-primary-500 hover:text-primary-700 text-sm"
-          >
-            {mode === 'translate' ? 'Chuyển sang chế độ tự đặt câu' : 'Chuyển sang chế độ dịch câu'}
-          </button>
         </div>
         
         <div className="mb-6">
@@ -519,21 +620,15 @@ const VocabExamplePage = () => {
           <p className="text-gray-600">{currentWord.meaning}</p>
         </div>
         
-        {mode === 'translate' ? (
-          <div className="mb-4">
-            <h3 className="font-medium mb-2">Câu ví dụ:</h3>
-            <p className="p-3 bg-gray-700 rounded">{currentWord.example}</p>
-          </div>
-        ) : (
-          <div className="mb-4">
-            <h3 className="font-medium mb-2">Hãy đặt một câu tiếng Anh sử dụng từ vựng này:</h3>
-          </div>
-        )}
+        <div className="mb-4">
+          <h3 className="font-bold text-2xl mb-2">Câu ví dụ:</h3>
+          <p className="bg-gray-700  font-bold text-2xl rounded">{currentWord.example}</p>
+        </div>
         
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
             <label htmlFor="answer" className="block font-medium mb-2">
-              {mode === 'translate' ? 'Dịch câu trên sang tiếng Anh:' : 'Câu của bạn:'}
+              Dịch câu trên sang tiếng Anh:
             </label>
             <textarea
               id="answer"
@@ -543,7 +638,7 @@ const VocabExamplePage = () => {
               className="w-full p-2 border border-gray-300 bg-gray-700 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
               rows={3}
               disabled={!!evaluationResult}
-              placeholder={mode === 'translate' ? 'Nhập bản dịch của bạn...' : 'Nhập câu của bạn...'}
+              placeholder="Nhập bản dịch của bạn..."
             />
           </div>
           
@@ -564,16 +659,7 @@ const VocabExamplePage = () => {
                 <div className="text-sm font-medium text-gray-600">🤖 AI đang phân tích...</div>
                 <div className="ml-2 text-xs text-gray-500">({chunkCount} chunks)</div>
               </div>
-              {mode === 'custom' && (
-                <StreamingText
-                  text={streamingText}
-                  speed={30}
-                  showCursor={true}
-                  enableSmoothing={true}
-                  className={styles.typingEffect}
-                />
-              )}
-              {mode === 'translate' && evaluationResult && (
+              {evaluationResult && (
                 <div className="text-sm text-gray-800">
                   {evaluationResult.score > 0 && (
                     <div className="mb-2">
@@ -695,7 +781,7 @@ const VocabExamplePage = () => {
               </div>
             )}
             
-            {mode === 'translate' && evaluationResult.correctAnswer && (
+            {evaluationResult.correctAnswer && (
               <div className="mb-4">
                 <h3 className="font-bold text-2xl mb-2">✅ Câu dịch tham khảo:</h3>
                 <StreamingText
@@ -708,16 +794,67 @@ const VocabExamplePage = () => {
               </div>
             )}
             
-            {mode === 'custom' && evaluationResult.examples && evaluationResult.examples.length > 0 && (
-              <div className="mb-4">
-                <h3 className="font-medium mb-2">Ví dụ tham khảo:</h3>
-                <ul className="list-disc pl-5">
-                  {evaluationResult.examples.map((example, index) => (
-                    <li key={index} className="p-2 bg-gray-100 rounded mt-2">{example}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {/* Q&A Section */}
+            <div className="mt-6 border-t pt-4">
+              {!showQASection ? (
+                <button
+                  onClick={handleShowQA}
+                  className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mr-4"
+                >
+                  🤔 Hỏi AI thêm
+                </button>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-lg">💬 Hỏi AI về bài này</h3>
+                    <button
+                      onClick={handleResetQA}
+                      className="text-gray-500 hover:text-gray-700 text-sm"
+                    >
+                      ✕ Đóng
+                    </button>
+                  </div>
+                  
+                  <form onSubmit={handleQASubmit}>
+                    <div className="mb-4">
+              <textarea
+                id="qa-question"
+                ref={qaInputRef}
+                value={qaInputValue}
+                onChange={(e) => setQaInputValue(e.target.value)}
+                className="w-full p-2 border border-gray-300 bg-gray-700 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
+                rows={3}
+                placeholder="Hỏi AI về từ vựng này..."
+                disabled={qaLoading}
+              />
+                    </div>
+                    
+                    <button
+                      type="submit"
+                      className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
+                      disabled={qaLoading || !qaInputValue.trim()}
+                    >
+                      {qaLoading ? 'Đang hỏi AI...' : 'Gửi câu hỏi'}
+                    </button>
+                  </form>
+                  
+                  {qaResponse && (
+                    <div className="mt-4 p-4 bg-gray-700 rounded border">
+                      <h4 className="font-bold text-yellow-500 text-2xl mb-2">🤖 Trả lời từ AI:</h4>
+                      <div className="whitespace-pre-line">
+                        <StreamingText
+                          text={formatTextWithLineBreaks(qaResponse)}
+                          speed={qaStreaming ? 25 : 0}
+                          showCursor={qaStreaming}
+                          enableSmoothing={true}
+                          className="text-white"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             
             <button
               onClick={handleNext}
@@ -728,6 +865,55 @@ const VocabExamplePage = () => {
           </div>
         )}
       </div>
+      
+      {/* Translation Popup */}
+      {showTranslation && (
+        <div 
+          className="translation-popup fixed z-50 bg-white border border-gray-300 rounded-lg shadow-lg p-3 min-w-[200px]"
+          style={{
+            left: `${translationPosition.x}px`,
+            top: `${translationPosition.y}px`,
+            transform: 'translate(-50%, -100%)'
+          }}
+        >
+          <div className="text-sm text-black mb-2">
+            <strong>Đã chọn:</strong> "{selectedText}"
+          </div>
+          
+          <div className="flex gap-2 mb-2">
+            <button
+              onClick={() => handleTranslateClick('en')}
+              className="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600"
+              disabled={translationLoading}
+            >
+              🇺🇸 Sang EN
+            </button>
+            <button
+              onClick={() => handleTranslateClick('vi')}
+              className="bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600"
+              disabled={translationLoading}
+            >
+              🇻🇳 Sang VI
+            </button>
+            <button
+              onClick={closeTranslation}
+              className="bg-gray-500 text-white px-2 py-1 rounded text-xs hover:bg-gray-600"
+            >
+              ✕
+            </button>
+          </div>
+          
+          {translationLoading && (
+            <div className="text-xs text-gray-600">Đang dịch...</div>
+          )}
+          
+          {translationResult && (
+            <div className="text-sm bg-gray-700 p-2 rounded border-t">
+              <strong>Dịch:</strong> {translationResult}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
