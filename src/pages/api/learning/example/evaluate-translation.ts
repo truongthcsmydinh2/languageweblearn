@@ -39,7 +39,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // *** PROMPT ĐƯỢC TỐI ƯU CHO STREAMING JSONL ***
     console.log(`🔧 [${requestId}] Creating prompt for Gemini API...`);
     const prompt = `
-Bạn LÀ người bạn AI, chuyên chấm điểm và đưa ra phản hồi chi tiết, câu phản hồi phải sử dụng những từ ngữ câu văn phù hợp ko quá trang trọng nhưng cũng không được quá dân dã. Trả về kết quả dưới dạng một chuỗi sự kiện JSONL (mỗi JSON trên một dòng mới).
+Bạn LÀ giáo viên tiếng Anh chuyên nghiệp, NGHIÊM KHẮC và CHÍNH XÁC trong việc chấm điểm. Nhiệm vụ của bạn là:
+- PHÁT HIỆN MỌI LỖI SAI (ngữ pháp, từ vựng, nghĩa, cấu trúc)
+- KHÔNG ĐƯỢC BỎ QUA hay GIẢM NHẸ bất kỳ lỗi nào
+- ĐƯA RA GỢI Ý CỤ THỂ, KHẢ THI, KHÔNG CHUNG CHUNG
+- SỬ DỤNG ngôn ngữ thân thiện nhưng chuyên nghiệp
+Trả về kết quả dưới dạng một chuỗi sự kiện JSONL (mỗi JSON trên một dòng mới).
 
 **BỐI CẢNH:**
 - Từ vựng: "${word}"
@@ -53,8 +58,17 @@ Sử dụng các key: \`e\` (event), \`k\` (key), \`c\` (content/chunk), \`v\` (
 1.  **Bắt đầu:** Gửi ngay một sự kiện \`{"e": "start"}\`.
 2.  **Điểm số tính trên thang 1-100 (IMPORTANCE):** Gửi ngay điểm số bằng \`{"e": "data", "k": "score", "v": number}\`.
 3.  **Phản hồi (Chúng ta cần 1 feedback nêu rõ những điểm được và những điểm chưa được) (\`feedback\`):** Stream từng từ bằng \`{"e": "data", "k": "feedback", "c": "từng_từ_một"}\`.
-4.  **Lỗi sai nêu chi tiết cụ thể từng lỗi sai và cách sửa cho hợp lý. (Lưu ý thêm là trình bày phải khoa học có ngăn cách giữa các lỗi sai tránh gây hiểu nhầm khi đọc) (\`errors\`):** Stream từng từ bằng \`{"e": "data", "k": "errors", "c": "từng_từ_một"}\`. Nếu không có lỗi, gửi "Không có lỗi đáng kể" từng từ.
-5.  **Gợi ý Nâng cấp toàn diện bài viết bằng cách: Tinh chỉnh Từ vựng: Thay thế từ ngữ phổ thông bằng các từ chuyên nghiệp, trang trọng và giàu sức gợi hơn để tăng tính hấp dẫn. Cô đọng Diễn đạt: Sắp xếp lại cấu trúc câu cho ngắn gọn, mạch lạc nhưng vẫn đảm bảo truyền tải ý nghĩa một cách sắc bén. Làm rõ Gợi ý: Khi đề xuất thay đổi, bắt buộc phải chỉ rõ: Từ gốc: Từ nào cần sửa. Từ thay thế: Nên dùng từ nào. Lý do: Giải thích tại sao từ mới hiệu quả hơn (chính xác, trang trọng, hay hơn...). Cuối cùng gợi ý cấu trúc câu có band cao hơn để người học có thể nâng cao trình độ. (\`suggestions\`):** Stream từng từ bằng \`{"e": "data", "k": "suggestions", "c": "từng_từ_một"}\`.
+4.  **Lỗi sai - PHÂN TÍCH BẮT BUỘC (\`errors\`):** Stream từng từ bằng \`{"e": "data", "k": "errors", "c": "từng_từ_một"}\`. BẮT BUỘC kiểm tra:
+   - **Ngữ pháp:** Thì động từ, cấu trúc câu, giới từ, mạo từ
+   - **Từ vựng:** Chính tả, cách dùng từ, collocation
+   - **Nghĩa:** So sánh với câu gốc, có truyền tải đúng ý không
+   - **Cấu trúc:** Trật tự từ, liên kết câu
+   Định dạng: "[LOẠI LỖI] - [VỊ TRÍ CỤ THỂ]: [MÔ TẢ LỖI] → [CÁCH SỬA]". CHỈ viết "Không có lỗi đáng kể" khi đã kiểm tra kỹ lưỡng và thực sự không có lỗi nào.
+5.  **Gợi ý Nâng cấp - PHẢI CỤ THỂ VÀ KHẢ THI (\`suggestions\`):** Stream từng từ bằng \`{"e": "data", "k": "suggestions", "c": "từng_từ_một"}\`. TUYỆT ĐỐI KHÔNG đưa ra gợi ý chung chung. Bắt buộc cung cấp:
+   - **Từ vựng cụ thể:** "Thay '[từ_hiện_tại]' bằng '[từ_tốt_hơn]' vì [lý_do_rõ_ràng]"
+   - **Cấu trúc câu thay thế:** "Thay vì viết '[câu_gốc]', hãy viết '[câu_cải_tiến_hoàn_chỉnh]'"
+   - **Mẫu câu nâng cao:** Đưa ra 2-3 cách viết khác nhau cho cùng một ý với độ phức tạp tăng dần
+   - **Lý do cải thiện:** Giải thích tại sao mỗi thay đổi làm câu tốt hơn (tự nhiên hơn, chính xác hơn, academic hơn)
 6.  **Câu đúng (\`correctAnswer\`):** Stream từng từ bằng \`{"e": "data", "k": "correctAnswer", "c": "từng_từ_một"}\`.
 7.  **Kết thúc:** Gửi một sự kiện \`{"e": "end"}\`.
 

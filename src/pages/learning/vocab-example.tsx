@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import StreamingText from '@/components/common/StreamingText';
 import styles from '@/styles/TypingEffect.module.css';
-import { safeJsonParse } from '@/utils/jsonUtils';
+import { safeJsonParse, formatFeedbackText, formatTextWithLineBreaks } from '@/utils/jsonUtils';
 
 interface Word {
   id: string;
@@ -242,8 +242,8 @@ const VocabExamplePage = () => {
                     setEvaluationResult({
                       score: currentEvaluation.score || 0,
                       feedback: currentEvaluation.feedback,
-                      errors: currentEvaluation.errors,
-                      suggestions: currentEvaluation.suggestions,
+                      errors: currentEvaluation.errors ? [currentEvaluation.errors] : [],
+                      suggestions: currentEvaluation.suggestions ? [currentEvaluation.suggestions] : [],
                       examples: currentEvaluation.examples,
                       correctAnswer: currentEvaluation.correctAnswer
                     });
@@ -333,15 +333,15 @@ const VocabExamplePage = () => {
                     if (parsed.k === 'score') {
                       currentEvaluation.score = parsed.v;
                       // Cập nhật UI ngay lập tức
-                      setEvaluationResult(prev => ({
-                        ...prev,
-                        score: parsed.v,
-                        feedback: currentEvaluation.feedback,
-                        errors: currentEvaluation.errors,
-                        suggestions: currentEvaluation.suggestions,
-                        examples: currentEvaluation.examples,
-                        correctAnswer: currentEvaluation.correctAnswer
-                      }));
+                        setEvaluationResult(prev => ({
+                          ...prev,
+                          score: parsed.v,
+                          feedback: currentEvaluation.feedback,
+                          errors: currentEvaluation.errors ? [currentEvaluation.errors] : [],
+                          suggestions: currentEvaluation.suggestions ? [currentEvaluation.suggestions] : [],
+                          examples: currentEvaluation.examples,
+                          correctAnswer: currentEvaluation.correctAnswer
+                        }));
                     } else if (parsed.k === 'feedback') {
                       if (parsed.c) {
                         currentEvaluation.feedback += (currentEvaluation.feedback ? ' ' : '') + parsed.c;
@@ -350,8 +350,8 @@ const VocabExamplePage = () => {
                           ...prev,
                           score: currentEvaluation.score || 0,
                           feedback: currentEvaluation.feedback,
-                          errors: currentEvaluation.errors,
-                          suggestions: currentEvaluation.suggestions,
+                          errors: currentEvaluation.errors ? [currentEvaluation.errors] : [],
+                          suggestions: currentEvaluation.suggestions ? [currentEvaluation.suggestions] : [],
                           examples: currentEvaluation.examples,
                           correctAnswer: currentEvaluation.correctAnswer
                         }));
@@ -364,8 +364,8 @@ const VocabExamplePage = () => {
                           ...prev,
                           score: currentEvaluation.score || 0,
                           feedback: currentEvaluation.feedback,
-                          errors: currentEvaluation.errors,
-                          suggestions: currentEvaluation.suggestions,
+                          errors: currentEvaluation.errors ? [currentEvaluation.errors] : [],
+                          suggestions: currentEvaluation.suggestions ? [currentEvaluation.suggestions] : [],
                           examples: currentEvaluation.examples,
                           correctAnswer: currentEvaluation.correctAnswer
                         }));
@@ -378,8 +378,8 @@ const VocabExamplePage = () => {
                           ...prev,
                           score: currentEvaluation.score || 0,
                           feedback: currentEvaluation.feedback,
-                          errors: currentEvaluation.errors,
-                          suggestions: currentEvaluation.suggestions,
+                          errors: currentEvaluation.errors ? [currentEvaluation.errors] : [],
+                          suggestions: currentEvaluation.suggestions ? [currentEvaluation.suggestions] : [],
                           examples: currentEvaluation.examples,
                           correctAnswer: currentEvaluation.correctAnswer
                         }));
@@ -392,8 +392,8 @@ const VocabExamplePage = () => {
                           ...prev,
                           score: currentEvaluation.score || 0,
                           feedback: currentEvaluation.feedback,
-                          errors: currentEvaluation.errors,
-                          suggestions: currentEvaluation.suggestions,
+                          errors: currentEvaluation.errors ? [currentEvaluation.errors] : [],
+                          suggestions: currentEvaluation.suggestions ? [currentEvaluation.suggestions] : [],
                           examples: currentEvaluation.examples,
                           correctAnswer: currentEvaluation.correctAnswer
                         }));
@@ -404,8 +404,8 @@ const VocabExamplePage = () => {
                     setEvaluationResult({
                       score: currentEvaluation.score || 0,
                       feedback: currentEvaluation.feedback,
-                      errors: currentEvaluation.errors,
-                      suggestions: currentEvaluation.suggestions,
+                      errors: currentEvaluation.errors ? [currentEvaluation.errors] : [],
+                      suggestions: currentEvaluation.suggestions ? [currentEvaluation.suggestions] : [],
                       examples: currentEvaluation.examples,
                       correctAnswer: currentEvaluation.correctAnswer
                     });
@@ -583,13 +583,15 @@ const VocabExamplePage = () => {
                   {evaluationResult.feedback && (
                     <div className="mb-2">
                       <strong>💬 Nhận xét:</strong>
-                      <StreamingText
-                        text={evaluationResult.feedback}
-                        speed={25}
-                        showCursor={false}
-                        enableSmoothing={true}
-                        className={styles.typingEffect}
-                      />
+                      <div className="whitespace-pre-line">
+                        <StreamingText
+                          text={formatTextWithLineBreaks(evaluationResult.feedback)}
+                          speed={25}
+                          showCursor={false}
+                          enableSmoothing={true}
+                          className={styles.typingEffect}
+                        />
+                      </div>
                     </div>
                   )}
                   {evaluationResult.correctAnswer && (
@@ -607,25 +609,29 @@ const VocabExamplePage = () => {
                   {evaluationResult.errors && (
                     <div className="mb-2">
                       <strong>❌ Lỗi:</strong>
-                      <StreamingText
-                        text={evaluationResult.errors}
-                        speed={25}
-                        showCursor={false}
-                        enableSmoothing={true}
-                        className={styles.typingEffect}
-                      />
+                      <div className="whitespace-pre-line">
+                        <StreamingText
+                          text={formatFeedbackText(Array.isArray(evaluationResult.errors) ? evaluationResult.errors.join(' ') : evaluationResult.errors)}
+                          speed={25}
+                          showCursor={false}
+                          enableSmoothing={true}
+                          className={styles.typingEffect}
+                        />
+                      </div>
                     </div>
                   )}
                   {evaluationResult.suggestions && (
                     <div className="mb-2">
                       <strong>💡 Gợi ý:</strong>
-                      <StreamingText
-                        text={evaluationResult.suggestions}
-                        speed={25}
-                        showCursor={false}
-                        enableSmoothing={true}
-                        className={styles.typingEffect}
-                      />
+                      <div className="whitespace-pre-line">
+                        <StreamingText
+                          text={formatFeedbackText(Array.isArray(evaluationResult.suggestions) ? evaluationResult.suggestions.join(' ') : evaluationResult.suggestions)}
+                          speed={25}
+                          showCursor={false}
+                          enableSmoothing={true}
+                          className={styles.typingEffect}
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -648,38 +654,44 @@ const VocabExamplePage = () => {
             
             <div className="mb-4">
               <h3 className="font-bold text-2xl mb-2">💬 Nhận xét:</h3>
-              <StreamingText
-                text={evaluationResult.feedback}
-                speed={20}
-                showCursor={false}
-                enableSmoothing={true}
-                className="text-xl font-bold"
-              />
+              <div className="whitespace-pre-line">
+                <StreamingText
+                  text={formatTextWithLineBreaks(evaluationResult.feedback)}
+                  speed={20}
+                  showCursor={false}
+                  enableSmoothing={true}
+                  className="text-xl font-bold"
+                />
+              </div>
             </div>
             
             {evaluationResult.errors && (
               <div className="mb-4">
                 <h3 className="font-bold text-2xl mb-2">❌ Lỗi:</h3>
-                <StreamingText
-                  text={evaluationResult.errors}
-                  speed={20}
-                  showCursor={false}
-                  enableSmoothing={true}
-                  className="text-red-600 text-xl font-bold"
-                />
+                <div className="whitespace-pre-line">
+                  <StreamingText
+                    text={formatFeedbackText(Array.isArray(evaluationResult.errors) ? evaluationResult.errors.join(' ') : evaluationResult.errors)}
+                    speed={20}
+                    showCursor={false}
+                    enableSmoothing={true}
+                    className="text-red-600 text-xl font-bold"
+                  />
+                </div>
               </div>
             )}
             
             {evaluationResult.suggestions && (
               <div className="mb-4">
                 <h3 className="font-bold text-2xl mb-2">💡 Gợi ý:</h3>
-                <StreamingText
-                  text={evaluationResult.suggestions}
-                  speed={20}
-                  showCursor={false}
-                  enableSmoothing={true}
-                  className="text-green-600 text-xl font-bold"
-                />
+                <div className="whitespace-pre-line">
+                  <StreamingText
+                    text={formatFeedbackText(Array.isArray(evaluationResult.suggestions) ? evaluationResult.suggestions.join(' ') : evaluationResult.suggestions)}
+                    speed={20}
+                    showCursor={false}
+                    enableSmoothing={true}
+                    className="text-green-600 text-xl font-bold"
+                  />
+                </div>
               </div>
             )}
             

@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import StreamingText from '@/components/common/StreamingText';
 import styles from '@/styles/TypingEffect.module.css';
-import { safeJsonParse } from '@/utils/jsonUtils';
+import { safeJsonParse, formatFeedbackText, formatTextWithLineBreaks } from '@/utils/jsonUtils';
 
 interface Word {
   id: string;
@@ -467,37 +467,43 @@ const ExampleLearningPage = () => {
                   {evaluationResult.feedback && (
                     <div>
                       <strong className="text-green-600 block mb-1">💬 Nhận xét:</strong>
-                      <StreamingText 
-                        text={evaluationResult.feedback}
-                        speed={20}
-                        showCursor={true}
-                        enableSmoothing={true}
-                        className="text-gray-700"
-                      />
+                      <div className="whitespace-pre-line">
+                        <StreamingText 
+                          text={formatTextWithLineBreaks(evaluationResult.feedback)}
+                          speed={20}
+                          showCursor={true}
+                          enableSmoothing={true}
+                          className="text-gray-700"
+                        />
+                      </div>
                     </div>
                   )}
                   {evaluationResult.errors && (
                     <div>
                       <strong className="text-red-600 block mb-1">❌ Lỗi:</strong>
-                      <StreamingText 
-                        text={evaluationResult.errors}
-                        speed={20}
-                        showCursor={true}
-                        enableSmoothing={true}
-                        className="text-red-600"
-                      />
+                      <div className="whitespace-pre-line">
+                        <StreamingText 
+                          text={formatFeedbackText(evaluationResult.errors)}
+                          speed={20}
+                          showCursor={true}
+                          enableSmoothing={true}
+                          className="text-red-600"
+                        />
+                      </div>
                     </div>
                   )}
                   {evaluationResult.suggestions && (
                     <div>
                       <strong className="text-blue-600 block mb-1">💡 Gợi ý:</strong>
-                      <StreamingText 
-                        text={evaluationResult.suggestions}
-                        speed={20}
-                        showCursor={true}
-                        enableSmoothing={true}
-                        className="text-blue-600"
-                      />
+                      <div className="whitespace-pre-line">
+                        <StreamingText 
+                          text={formatFeedbackText(evaluationResult.suggestions)}
+                          speed={20}
+                          showCursor={true}
+                          enableSmoothing={true}
+                          className="text-blue-600"
+                        />
+                      </div>
                     </div>
                   )}
                   {evaluationResult.correctAnswer && (
@@ -532,20 +538,20 @@ const ExampleLearningPage = () => {
             
             <div className="mb-4">
               <h3 className="font-medium mb-2">Nhận xét:</h3>
-              <p>{evaluationResult.feedback}</p>
+              <div className="whitespace-pre-line">{formatTextWithLineBreaks(evaluationResult.feedback)}</div>
             </div>
             
             {evaluationResult.errors && (
               <div className="mb-4">
                 <h3 className="font-medium mb-2">Lỗi:</h3>
-                <p className="text-red-600">{evaluationResult.errors}</p>
+                <div className="text-red-600 whitespace-pre-line">{formatFeedbackText(evaluationResult.errors)}</div>
               </div>
             )}
             
             {evaluationResult.suggestions && (
               <div className="mb-4">
                 <h3 className="font-medium mb-2">Gợi ý:</h3>
-                <p className="text-green-600">{evaluationResult.suggestions}</p>
+                <div className="text-green-600 whitespace-pre-line">{formatFeedbackText(evaluationResult.suggestions)}</div>
               </div>
             )}
             

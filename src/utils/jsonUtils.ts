@@ -69,3 +69,62 @@ export function extractJson(input: string): string | null {
     return null;
   }
 }
+
+/**
+ * Format text by breaking long sentences into multiple lines
+ * @param text - The text to format
+ * @returns Formatted text with line breaks
+ */
+export function formatTextWithLineBreaks(text: string | string[] | any): string {
+  if (!text || typeof text !== 'string') return text || '';
+  
+  // Tách câu dựa trên dấu chấm, dấu hai chấm, và các từ khóa
+  let formatted = text
+    // Thêm xuống dòng sau dấu chấm (nếu không phải số thập phân)
+    .replace(/\. (?=[A-Z])/g, '.\n')
+    // Thêm xuống dòng trước "Ví dụ," hoặc "Hoặc:"
+    .replace(/\s+(Ví dụ,|Hoặc:|Thay vì)/g, '\n$1')
+    // Thêm xuống dòng trước các cụm từ bắt đầu câu mới
+    .replace(/\s+(Bạn có thể|Thay thế|Cải thiện|Sử dụng)/g, '\n$1')
+    // Tách các câu ví dụ trong ngoặc đơn thành dòng riêng (cải thiện regex để không tách từ có dấu nháy đơn)
+    .replace(/\s*'([^']*(?:'[^']*)*)'\s*\(([^)]+)\)\./g, '\n\'$1\' ($2).')
+    // Thêm xuống dòng sau dấu ngoặc đơn kết thúc nếu theo sau là chữ cái viết hoa hoặc "Hoặc"
+    .replace(/\)\s*\.?\s*(Hoặc:|[A-Z])/g, ').\n$1')
+    // Loại bỏ khoảng trắng thừa và xuống dòng liên tiếp
+    .replace(/\n\s+/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+    
+  return formatted;
+}
+
+/**
+ * Format suggestions and errors text for better readability
+ * @param text - The text to format
+ * @returns Formatted text with proper line breaks and structure
+ */
+export function formatFeedbackText(text: string | string[] | any): string {
+  if (!text || typeof text !== 'string') return text || '';
+  
+  let formatted = text
+    // Tách các gợi ý riêng biệt
+    .replace(/\. (Ví dụ|Hoặc|Thay vì|Bạn có thể|Cải thiện|Gợi ý)/g, '.\n\n$1')
+    // Tách các loại lỗi
+    .replace(/\. (\[.*?\])/g, '.\n\n$1')
+    // Thêm xuống dòng sau dấu ngoặc vuông đóng
+    .replace(/\]: /g, ']: \n')
+    // Tách các câu ví dụ trong ngoặc đơn thành dòng riêng (cải thiện regex để không tách từ có dấu nháy đơn)
+    .replace(/\s*'([^']*(?:'[^']*)*)'\s*\(([^)]+)\)\./g, '\n\'$1\' ($2).')
+    // Thêm xuống dòng sau dấu ngoặc đơn kết thúc nếu theo sau là "Hoặc" hoặc chữ cái viết hoa
+    .replace(/\)\s*\.?\s*(Hoặc:|[A-Z])/g, ').\n$1')
+    // Thêm xuống dòng trước "Ví dụ," hoặc "Hoặc:"
+    .replace(/\s+(Ví dụ,|Hoặc:|Thay vì)/g, '\n$1')
+    // Thêm xuống dòng trước các từ khóa quan trọng
+    .replace(/(Từ gốc:|Từ thay thế:|Lý do:|Cấu trúc:|Mẫu câu:)/g, '\n$1')
+    // Loại bỏ khoảng trắng thừa
+    .replace(/\n\s+/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+    
+  return formatted;
+}
