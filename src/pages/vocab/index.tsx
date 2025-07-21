@@ -36,6 +36,13 @@ const VocabListPage: React.FC = () => {
   const [selectedTerms, setSelectedTerms] = useState<Term[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
+
+  // Kiểm tra đăng nhập
+  useEffect(() => {
+    if (!user) {
+      router.push('/auth/signin');
+    }
+  }, [user, router]);
   const [vocabList, setVocabList] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -179,7 +186,18 @@ const VocabListPage: React.FC = () => {
     if (reset) setIsFirstLoading(true);
     setLoadingMore(true);
     try {
-      const res = await fetch(`/api/vocab?limit=${PAGE_SIZE}&offset=${reset ? 0 : offset}&search=${encodeURIComponent(search)}`);
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+      
+      // Thêm firebase_uid vào header nếu user đã đăng nhập
+      if (user?.uid) {
+        headers['firebase_uid'] = user.uid;
+      }
+      
+      const res = await fetch(`/api/vocab?limit=${PAGE_SIZE}&offset=${reset ? 0 : offset}&search=${encodeURIComponent(search)}`, {
+        headers
+      });
       const data = await res.json();
       if (reset) {
         setVocabList(data.data);
@@ -200,9 +218,11 @@ const VocabListPage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchVocab(true);
+    if (user?.uid) {
+      fetchVocab(true);
+    }
     // eslint-disable-next-line
-  }, []);
+  }, [user?.uid]);
 
   // Infinite scroll: tự động load thêm khi kéo xuống cuối
   useEffect(() => {

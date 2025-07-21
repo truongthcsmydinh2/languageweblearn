@@ -1,15 +1,15 @@
 const fs = require('fs');
 
 // Đọc file datademo.json
-const testData = JSON.parse(fs.readFileSync('datademo.json', 'utf8'));
+const jsonData = JSON.parse(fs.readFileSync('demodata/cam 19 reading test 1 read 2.json', 'utf8'));
 
 console.log('=== DEBUG IMPORT ===');
-console.log('Test data keys:', Object.keys(testData));
+console.log('Test data keys:', Object.keys(jsonData));
 
-if (testData.content && testData.content.questionGroups) {
-  console.log('Question groups found:', testData.content.questionGroups.length);
+if (jsonData.content && jsonData.content.questionGroups) {
+  console.log('Question groups found:', jsonData.content.questionGroups.length);
   
-  testData.content.questionGroups.forEach((group, index) => {
+  jsonData.content.questionGroups.forEach((group, index) => {
     console.log(`Group ${index + 1}:`, {
       type: group.type,
       range: group.range,
@@ -23,6 +23,7 @@ function mapQuestionType(type) {
   console.log('Mapping type:', type);
   
   const typeMap = {
+    // Uppercase variants (from JSON files)
     'MATCHING_INFORMATION': 'matching_information',
     'MULTIPLE_CHOICE_MULTIPLE_ANSWERS': 'multiple_choice_group',
     'COMPLETION': 'summary_completion',
@@ -38,7 +39,26 @@ function mapQuestionType(type) {
     'DIAGRAM_LABELLING': 'diagram_labelling',
     'SHORT_ANSWER_QUESTIONS': 'short_answer_questions',
     'MULTIPLE_CHOICE': 'multiple_choice',
-    'MULTIPLE_CHOICE_5': 'multiple_choice_5'
+    'MULTIPLE_CHOICE_5': 'multiple_choice_5',
+    
+    // Lowercase variants
+    'matching_information': 'matching_information',
+    'multiple_choice_multiple_answers': 'multiple_choice_group',
+    'completion': 'summary_completion',
+    'true_false_not_given': 'true_false_not_given',
+    'yes_no_not_given': 'yes_no_not_given',
+    'matching_headings': 'matching_headings',
+    'matching_features': 'matching_features',
+    'matching_sentence_endings': 'matching_sentence_endings',
+    'sentence_completion': 'sentence_completion',
+    'note_completion': 'note_completion',
+    'table_completion': 'table_completion',
+    'flow_chart_completion': 'flow_chart_completion',
+    'diagram_labelling': 'diagram_labelling',
+    'short_answer_questions': 'short_answer_questions',
+    'multiple_choice': 'multiple_choice',
+    'multiple_choice_5': 'multiple_choice_5',
+    'summary_completion': 'summary_completion'
   };
   
   const mappedType = typeMap[type] || 'multiple_choice';
@@ -47,10 +67,10 @@ function mapQuestionType(type) {
 }
 
 // Test mapping cho từng group
-testData.content.questionGroups.forEach((group, index) => {
+jsonData.content.questionGroups.forEach((group, index) => {
   console.log(`\nTesting group ${index + 1} (${group.type}):`);
   const mappedType = mapQuestionType(group.type);
   console.log(`Result: ${group.type} -> ${mappedType}`);
 });
 
-console.log('\n=== END DEBUG ==='); 
+console.log('\n=== END DEBUG ===');

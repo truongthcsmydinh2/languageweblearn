@@ -131,6 +131,9 @@ const SmartLearningPage = () => {
   const [nextLearningInfo, setNextLearningInfo] = useState<NextLearningInfo | null>(null);
   // Thêm state cho chế độ nhân từ
   const [lenientMode, setLenientMode] = useState<boolean>(true);
+  // Thêm state cho chức năng phát âm
+  const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -327,6 +330,36 @@ const SmartLearningPage = () => {
     }
   };
 
+  // Hàm phát âm thanh
+  const playAudio = async (word: string) => {
+    if (!word || isPlayingAudio) return;
+    
+    setIsPlayingAudio(true);
+    setAudioError(null);
+    
+    try {
+      const response = await fetch(`/api/cambridge-audio?word=${encodeURIComponent(word)}`);
+      const data = await response.json();
+      
+      if (response.ok && data.audioUrl) {
+        const audio = new Audio(data.audioUrl);
+        audio.onended = () => setIsPlayingAudio(false);
+        audio.onerror = () => {
+          setIsPlayingAudio(false);
+          setAudioError('Không thể phát âm thanh');
+        };
+        await audio.play();
+      } else {
+        setAudioError(data.error || 'Không tìm thấy âm thanh cho từ này');
+        setIsPlayingAudio(false);
+      }
+    } catch (error) {
+      console.error('Error playing audio:', error);
+      setAudioError('Lỗi khi phát âm thanh');
+      setIsPlayingAudio(false);
+    }
+  };
+
   const handleAnswer = async () => {
     // Cho phép Enter khi input rỗng để qua từ (không cần trả lời đúng mới cho qua)
     // Nếu input rỗng thì coi như trả lời sai (isCorrect = false), nhưng vẫn cho qua
@@ -359,6 +392,11 @@ const SmartLearningPage = () => {
     setIsAnswerCorrect(isCorrect);
     setStats(prev => ({ ...prev, total: prev.total + 1, correct: isCorrect ? prev.correct + 1 : prev.correct }));
     showingResultRef.current = true;
+    
+    // Tự động phát âm từ tiếng Anh trong cả hai trường hợp (en_to_vi và vi_to_en)
+    setTimeout(() => {
+      playAudio(currentItem.term.vocab);
+    }, 500); // Delay 500ms để người dùng có thể thấy kết quả trước
     try {
       if (!user || !user.uid) {
         setError("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.");
@@ -713,9 +751,34 @@ const SmartLearningPage = () => {
                   </div>
                   
                   <div className="bg-gray-700 rounded-lg p-4 mb-4">
-                    <p className="text-3xl text-gray-50 font-medium">
-                      {getCorrectAnswer()}
-                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-3xl text-gray-50 font-medium">
+                        {getCorrectAnswer()}
+                      </p>
+                      <button
+                        onClick={() => playAudio(getCurrentItem()?.term.vocab || '')}
+                        disabled={isPlayingAudio}
+                        className={`ml-4 p-3 rounded-full transition-all duration-200 ${
+                          isPlayingAudio 
+                            ? 'bg-primary-300 text-gray-800 cursor-not-allowed' 
+                            : 'bg-primary-200 text-gray-800 hover:bg-primary-300 hover:scale-110'
+                        }`}
+                        title="Phát âm từ tiếng Anh"
+                      >
+                        {isPlayingAudio ? (
+                          <svg className="w-6 h-6 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                          </svg>
+                        ) : (
+                          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                    {audioError && (
+                      <p className="text-error-200 text-sm mt-2">{audioError}</p>
+                    )}
                   </div>
                   
                   {getCurrentItem()?.term.notes && (

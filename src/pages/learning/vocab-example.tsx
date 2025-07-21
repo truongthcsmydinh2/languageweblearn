@@ -455,6 +455,8 @@ const VocabExamplePage = () => {
     const selection = window.getSelection();
     const text = selection?.toString().trim();
     
+    console.log('handleTextSelection called, text:', text);
+    
     if (text && text.length > 0) {
       // Check if selection is inside input/textarea elements
       const range = selection?.getRangeAt(0);
@@ -463,6 +465,7 @@ const VocabExamplePage = () => {
       
       // Don't show translation popup if selection is inside input/textarea
       if (parentElement && (parentElement.closest('input') || parentElement.closest('textarea'))) {
+        console.log('Text selection inside input/textarea, skipping');
         return;
       }
       
@@ -477,6 +480,10 @@ const VocabExamplePage = () => {
           y: rect.top - 10
         });
         setShowTranslation(true);
+        
+        console.log('About to call autoTranslateText with:', text);
+        // Automatically translate the selected text
+        autoTranslateText(text);
       }
     } else {
       setShowTranslation(false);
@@ -512,9 +519,48 @@ const VocabExamplePage = () => {
     }
   };
 
+  const autoTranslateText = async (text: string) => {
+    console.log('autoTranslateText called with:', text);
+    try {
+      setTranslationLoading(true);
+      console.log('Translation loading set to true');
+      
+      const response = await fetch('/api/translate-auto', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text,
+        }),
+      });
+
+      console.log('API response status:', response.status);
+      if (!response.ok) {
+        throw new Error('Auto translation failed');
+      }
+
+      const data = await response.json();
+      console.log('Translation data received:', data);
+      setTranslationResult(data.translatedText);
+    } catch (error) {
+      console.error('Auto translation error:', error);
+      setTranslationResult('Lỗi dịch thuật tự động');
+    } finally {
+      setTranslationLoading(false);
+      console.log('Translation loading set to false');
+    }
+  };
+
   const handleTranslateClick = (targetLang: 'en' | 'vi') => {
     if (selectedText) {
       translateText(selectedText, targetLang);
+    }
+  };
+
+  const handleAutoTranslateClick = () => {
+    if (selectedText) {
+      autoTranslateText(selectedText);
     }
   };
 
@@ -877,24 +923,10 @@ const VocabExamplePage = () => {
           }}
         >
           <div className="text-sm text-black mb-2">
-            <strong>Đã chọn:</strong> "{selectedText}"
+            <strong>🤖 Đã chọn:</strong> "{selectedText}"
           </div>
           
-          <div className="flex gap-2 mb-2">
-            <button
-              onClick={() => handleTranslateClick('en')}
-              className="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600"
-              disabled={translationLoading}
-            >
-              🇺🇸 Sang EN
-            </button>
-            <button
-              onClick={() => handleTranslateClick('vi')}
-              className="bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600"
-              disabled={translationLoading}
-            >
-              🇻🇳 Sang VI
-            </button>
+          <div className="flex justify-end mb-2">
             <button
               onClick={closeTranslation}
               className="bg-gray-500 text-white px-2 py-1 rounded text-xs hover:bg-gray-600"

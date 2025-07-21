@@ -828,118 +828,242 @@ const IeltsReadingAdminPage = () => {
     }));
   };
 
-  // Function xử lý import từ file JSON
+  // Function xử lý import từ file JSON với validation
   const handleFileImport = async (file: File) => {
     try {
+      // Kiểm tra loại file
+      if (!file.name.toLowerCase().endsWith('.json')) {
+        throw new Error('Vui lòng chọn file có định dạng .json');
+      }
+      
+      // Kiểm tra kích thước file (giới hạn 10MB)
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      if (file.size > maxSize) {
+        throw new Error('File quá lớn. Vui lòng chọn file nhỏ hơn 10MB');
+      }
+      
       const text = await file.text();
-      const data = JSON.parse(text);
-      setImportPreview(data);
+      
+      // Kiểm tra nội dung file không rỗng
+      if (!text.trim()) {
+        throw new Error('File JSON rỗng hoặc không có nội dung');
+      }
+      
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        throw new Error('File JSON không đúng định dạng. Vui lòng kiểm tra cú pháp JSON');
+      }
+      
+      // Validate cấu trúc dữ liệu
+      const validation = validateJsonData(data);
+      if (!validation.isValid) {
+        throw new Error(`Dữ liệu JSON không hợp lệ: ${validation.errors.join(', ')}`);
+      }
+      
       return data;
     } catch (error) {
-      console.error('Lỗi khi đọc file JSON:', error);
-      alert('Lỗi khi đọc file JSON. Vui lòng kiểm tra định dạng file.');
-      return null;
+      console.error('Lỗi khi xử lý file JSON:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Lỗi không xác định';
+      throw new Error(`Xử lý file thất bại: ${errorMessage}`);
     }
   };
 
-  // Function xử lý import từ URL
+  // Validation schema cho JSON data
+  const validateJsonData = (data: any): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+    
+    // Kiểm tra cấu trúc JSON mới
+    if (data.metadata && data.content) {
+      if (!data.metadata.title) errors.push('Thiếu metadata.title');
+      if (!data.content.readingPassage) errors.push('Thiếu content.readingPassage');
+      if (!data.content.readingPassage?.title) errors.push('Thiếu content.readingPassage.title');
+      if (!data.content.readingPassage?.paragraphs || !Array.isArray(data.content.readingPassage.paragraphs)) {
+        errors.push('Thiếu hoặc sai định dạng content.readingPassage.paragraphs');
+      }
+      if (!data.content.questionGroups || !Array.isArray(data.content.questionGroups)) {
+        errors.push('Thiếu hoặc sai định dạng content.questionGroups');
+      }
+    }
+    // Kiểm tra cấu trúc JSON cũ
+    else if (data.title && data.passages) {
+      if (!Array.isArray(data.passages)) errors.push('Sai định dạng passages');
+    }
+    else {
+      errors.push('Cấu trúc JSON không được hỗ trợ');
+    }
+    
+    return { isValid: errors.length === 0, errors };
+  };
+
+  // Function xử lý import từ URL với logic thống nhất
   const handleUrlImport = async (url: string) => {
     try {
       // Kiểm tra xem có phải là URL WordPress không
       if (url.includes('izone.edu.vn') || url.includes('wordpress') || url.includes('wp-json')) {
-        // Sử dụng endpoint mới để parse HTML từ URL
-        const response = await fetch('/api/admin/ielts-reading/import-from-url', {
+        // Gọi API để parse HTML và trả về preview data
+        const response = await fetch('/api/admin/ielts-reading/parse-url', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ url })
+          body: JSON.stringify({ url, previewOnly: true })
         });
 
         if (response.ok) {
-          const result = await response.json();
-          alert(`Import thành công! Đã tạo bài đọc với ID: ${result.passageId}`);
-          setShowImportForm(false);
-          setImportUrl('');
-          fetchPassages(); // Refresh danh sách
-          return result;
+          const data = await response.json();
+          // Validate dữ liệu trước khi set preview
+          const validation = validateJsonData(data);
+          if (!validation.isValid) {
+            throw new Error(`Dữ liệu không hợp lệ: ${validation.errors.join(', ')}`);
+          }
+          return data;
         } else {
           const error = await response.json();
-          throw new Error(error.message || 'Lỗi khi import từ URL');
+          throw new Error(error.message || 'Lỗi khi parse URL');
         }
       } else {
         // Xử lý URL JSON thông thường
         const response = await fetch(url);
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          throw new Error(`Không thể tải URL (HTTP ${response.status}): ${response.statusText}`);
         }
+        
+        const contentType = response.headers.get('content-type');
+        if (!contentType?.includes('application/json')) {
+          throw new Error('URL không trả về dữ liệu JSON hợp lệ');
+        }
+        
         const data = await response.json();
-        setImportPreview(data);
+        
+        // Validate dữ liệu
+        const validation = validateJsonData(data);
+        if (!validation.isValid) {
+          throw new Error(`Dữ liệu JSON không hợp lệ: ${validation.errors.join(', ')}`);
+        }
+        
         return data;
       }
     } catch (error) {
-      console.error('Lỗi khi tải dữ liệu từ URL:', error);
-      alert(`Lỗi khi tải dữ liệu từ URL: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      return null;
+      console.error('Lỗi khi import từ URL:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Lỗi không xác định';
+      throw new Error(`Import từ URL thất bại: ${errorMessage}`);
     }
   };
 
-  // Function xử lý preview import
+  // Function xử lý preview import với error handling cải thiện
   const handleImportPreview = async () => {
     setIsImporting(true);
+    setImportPreview(null); // Reset preview trước đó
+    
     try {
       let data = null;
       
-      if (importType === 'file' && importFile) {
+      // Validate input trước khi xử lý
+      if (importType === 'file') {
+        if (!importFile) {
+          throw new Error('Vui lòng chọn file JSON để import');
+        }
         data = await handleFileImport(importFile);
-      } else if (importType === 'url' && importUrl) {
+      } else if (importType === 'url') {
+        if (!importUrl.trim()) {
+          throw new Error('Vui lòng nhập URL để import');
+        }
+        // Validate URL format
+        try {
+          new URL(importUrl);
+        } catch {
+          throw new Error('URL không đúng định dạng. Vui lòng kiểm tra lại');
+        }
         data = await handleUrlImport(importUrl);
+      } else {
+        throw new Error('Vui lòng chọn loại import (File hoặc URL)');
       }
       
       if (data) {
         setImportPreview(data);
+        console.log('Preview data loaded successfully:', {
+          type: importType,
+          hasMetadata: !!data.metadata,
+          hasContent: !!data.content,
+          questionGroupsCount: data.content?.questionGroups?.length || 0
+        });
       }
     } catch (error) {
       console.error('Lỗi khi preview import:', error);
-      alert('Lỗi khi xử lý dữ liệu import.');
+      const errorMessage = error instanceof Error ? error.message : 'Lỗi không xác định khi xử lý dữ liệu';
+      alert(`Preview thất bại: ${errorMessage}`);
     } finally {
       setIsImporting(false);
     }
   };
 
-  // Function xử lý import dữ liệu vào hệ thống
+  // Function xử lý import dữ liệu vào hệ thống với validation và error handling cải thiện
   const handleImportData = async () => {
     if (!importPreview) {
       alert('Vui lòng preview dữ liệu trước khi import.');
       return;
     }
 
+    // Validate lại dữ liệu trước khi import
+    const validation = validateJsonData(importPreview);
+    if (!validation.isValid) {
+      alert(`Dữ liệu không hợp lệ: ${validation.errors.join(', ')}. Vui lòng kiểm tra lại dữ liệu.`);
+      return;
+    }
+
     setIsImporting(true);
     try {
+      console.log('Starting import process...', {
+        type: importType,
+        dataStructure: importPreview.metadata ? 'new' : 'legacy',
+        questionGroupsCount: importPreview.content?.questionGroups?.length || 0
+      });
+      
       // Gửi dữ liệu đến API để import
       const response = await fetch('/api/admin/ielts-reading/import', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(importPreview)
+        body: JSON.stringify({
+          ...importPreview,
+          importMetadata: {
+            source: importType,
+            sourceUrl: importType === 'url' ? importUrl : undefined,
+            fileName: importType === 'file' ? importFile?.name : undefined,
+            importedAt: new Date().toISOString()
+          }
+        })
       });
 
       if (response.ok) {
         const result = await response.json();
-        alert(`Import thành công! Đã tạo ${result.passagesCreated} bài đọc và ${result.questionsCreated} câu hỏi.`);
+        const successMessage = `Import thành công!\n` +
+          `- Đã tạo: ${result.passagesCreated} bài đọc\n` +
+          `- Đã tạo: ${result.questionsCreated} câu hỏi\n` +
+          `- Nguồn: ${importType === 'file' ? importFile?.name : importUrl}`;
+        
+        alert(successMessage);
+        
+        // Reset form và refresh dữ liệu
         setShowImportForm(false);
         setImportPreview(null);
         setImportFile(null);
         setImportUrl('');
         fetchPassages(); // Refresh danh sách
+        
+        console.log('Import completed successfully:', result);
       } else {
         const error = await response.json();
-        alert(`Lỗi khi import: ${error.message}`);
+        const errorMessage = error.message || 'Lỗi không xác định từ server';
+        throw new Error(errorMessage);
       }
     } catch (error) {
       console.error('Lỗi khi import dữ liệu:', error);
-      alert('Lỗi khi import dữ liệu. Vui lòng thử lại.');
+      const errorMessage = error instanceof Error ? error.message : 'Lỗi không xác định';
+      alert(`Import thất bại: ${errorMessage}\n\nVui lòng kiểm tra:\n- Định dạng dữ liệu\n- Kết nối mạng\n- Console để biết thêm chi tiết`);
     } finally {
       setIsImporting(false);
     }
@@ -2011,22 +2135,35 @@ const IeltsReadingAdminPage = () => {
                         type="radio"
                         value="file"
                         checked={importType === 'file'}
-                        onChange={(e) => setImportType(e.target.value as 'file' | 'url')}
+                        onChange={(e) => {
+                          setImportType(e.target.value as 'file' | 'url');
+                          setImportPreview(null); // Reset preview khi đổi loại
+                        }}
                         className="mr-2"
+                        disabled={isImporting}
                       />
-                      <span className="text-gray-200">File JSON</span>
+                      <span className={`text-gray-200 ${isImporting ? 'opacity-50' : ''}`}>File JSON</span>
                     </label>
                     <label className="flex items-center">
                       <input
                         type="radio"
                         value="url"
                         checked={importType === 'url'}
-                        onChange={(e) => setImportType(e.target.value as 'file' | 'url')}
+                        onChange={(e) => {
+                          setImportType(e.target.value as 'file' | 'url');
+                          setImportPreview(null); // Reset preview khi đổi loại
+                        }}
                         className="mr-2"
+                        disabled={isImporting}
                       />
-                      <span className="text-gray-200">URL</span>
+                      <span className={`text-gray-200 ${isImporting ? 'opacity-50' : ''}`}>URL</span>
                     </label>
                   </div>
+                  {isImporting && (
+                    <p className="text-yellow-400 text-sm mt-2">
+                      ⚠️ Đang xử lý... Vui lòng không thay đổi loại import
+                    </p>
+                  )}
                 </div>
 
                 {/* Input cho file hoặc URL */}
@@ -2037,13 +2174,24 @@ const IeltsReadingAdminPage = () => {
                       type="file"
                       accept=".json"
                       onChange={handleFileChange}
-                      className="w-full p-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-200"
+                      disabled={isImporting}
+                      className={`w-full p-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-200 ${
+                        isImporting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-500'
+                      }`}
                     />
                     {importFile && (
-                      <p className="text-green-400 text-sm mt-2">
-                        Đã chọn: {importFile.name}
-                      </p>
+                      <div className="mt-2 space-y-1">
+                        <p className="text-green-400 text-sm">
+                          ✅ Đã chọn: {importFile.name}
+                        </p>
+                        <p className="text-gray-400 text-xs">
+                          Kích thước: {(importFile.size / 1024).toFixed(2)} KB
+                        </p>
+                      </div>
                     )}
+                    <p className="text-gray-400 text-xs mt-2">
+                      💡 Chỉ chấp nhận file .json, tối đa 10MB
+                    </p>
                   </div>
                 ) : (
                   <div>
@@ -2051,22 +2199,67 @@ const IeltsReadingAdminPage = () => {
                     <input
                       type="url"
                       value={importUrl}
-                      onChange={(e) => setImportUrl(e.target.value)}
+                      onChange={(e) => {
+                        setImportUrl(e.target.value);
+                        setImportPreview(null); // Reset preview khi thay đổi URL
+                      }}
+                      disabled={isImporting}
                       placeholder="https://www.izone.edu.vn/luyen-thi-ielts/giai-de-cam-19-the-pirates-of-the-ancient-mediterranean/"
-                      className="w-full p-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-200"
+                      className={`w-full p-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-200 ${
+                        isImporting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-500 focus:border-blue-400'
+                      }`}
                     />
+                    <div className="mt-2 space-y-1">
+                      <p className="text-gray-400 text-xs">
+                        💡 Hỗ trợ: URL JSON trực tiếp hoặc trang WordPress/Elementor
+                      </p>
+                      {importUrl && (
+                        <p className="text-blue-400 text-xs">
+                          🔗 URL đã nhập: {importUrl.length > 60 ? importUrl.substring(0, 60) + '...' : importUrl}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
 
                 {/* Nút Preview */}
-                <div>
+                <div className="flex items-center space-x-4">
                   <button
                     onClick={handleImportPreview}
-                    disabled={isImporting || (importType === 'file' && !importFile) || (importType === 'url' && !importUrl)}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white px-6 py-3 rounded-lg"
+                    disabled={isImporting || (importType === 'file' && !importFile) || (importType === 'url' && !importUrl.trim())}
+                    className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                      isImporting || (importType === 'file' && !importFile) || (importType === 'url' && !importUrl.trim())
+                        ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-lg'
+                    }`}
                   >
-                    {isImporting ? 'Đang xử lý...' : 'Preview dữ liệu'}
+                    {isImporting ? (
+                      <span className="flex items-center">
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Đang xử lý...
+                      </span>
+                    ) : (
+                      '🔍 Preview dữ liệu'
+                    )}
                   </button>
+                  
+                  {/* Thông báo trạng thái */}
+                  {!isImporting && (
+                    <div className="text-sm">
+                      {importType === 'file' && !importFile && (
+                        <span className="text-yellow-400">⚠️ Vui lòng chọn file JSON</span>
+                      )}
+                      {importType === 'url' && !importUrl.trim() && (
+                        <span className="text-yellow-400">⚠️ Vui lòng nhập URL</span>
+                      )}
+                      {((importType === 'file' && importFile) || (importType === 'url' && importUrl.trim())) && (
+                        <span className="text-green-400">✅ Sẵn sàng preview</span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Preview dữ liệu */}
@@ -2156,14 +2349,40 @@ const IeltsReadingAdminPage = () => {
                     </div>
 
                     {/* Nút Import */}
-                    <div>
+                    <div className="flex items-center space-x-4">
                       <button
                         onClick={handleImportData}
                         disabled={isImporting}
-                        className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white px-6 py-3 rounded-lg"
+                        className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                          isImporting
+                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                            : 'bg-green-600 hover:bg-green-700 text-white hover:shadow-lg'
+                        }`}
                       >
-                        {isImporting ? 'Đang import...' : 'Import vào hệ thống'}
+                        {isImporting ? (
+                          <span className="flex items-center">
+                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Đang import...
+                          </span>
+                        ) : (
+                          '📥 Import vào hệ thống'
+                        )}
                       </button>
+                      
+                      {!isImporting && (
+                        <div className="text-sm">
+                          <span className="text-green-400">✅ Dữ liệu đã sẵn sàng để import</span>
+                        </div>
+                      )}
+                      
+                      {isImporting && (
+                        <div className="text-sm text-yellow-400">
+                          ⏳ Đang xử lý dữ liệu, vui lòng đợi...
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -2220,4 +2439,4 @@ const IeltsReadingAdminPage = () => {
   );
 };
 
-export default IeltsReadingAdminPage; 
+export default IeltsReadingAdminPage;

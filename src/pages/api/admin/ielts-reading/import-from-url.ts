@@ -3,23 +3,60 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+// Validation function for URL
+function validateUrl(url: string): { isValid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  try {
+    const urlObj = new URL(url);
+    
+    if (!['http:', 'https:'].includes(urlObj.protocol)) {
+      errors.push('URL phải sử dụng giao thức HTTP hoặc HTTPS');
+    }
+    
+    if (!urlObj.hostname || urlObj.hostname.length < 3) {
+      errors.push('Tên miền không hợp lệ');
+    }
+    
+  } catch (error) {
+    errors.push('URL không đúng định dạng');
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
+    return res.status(405).json({ 
+      success: false,
+      message: 'Method not allowed. Use POST.' 
+    });
   }
 
   try {
     const { url } = req.body;
-    
-    if (!url) {
+
+    if (!url || typeof url !== 'string') {
       return res.status(400).json({ 
-        success: false, 
-        message: 'URL is required' 
+        success: false,
+        message: 'URL is required and must be a string' 
+      });
+    }
+    
+    // Validate URL format
+    const urlValidation = validateUrl(url.trim());
+    if (!urlValidation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: `URL không hợp lệ: ${urlValidation.errors.join(', ')}`
       });
     }
 
     console.log('=== IMPORTING FROM URL ===');
-    console.log('URL:', url);
+    console.log('URL:', url.trim());
 
     // Lấy dữ liệu từ URL
     const response = await fetch(url);
@@ -440,6 +477,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log('=== IMPORT COMPLETED ===');
     console.log('Passage ID:', passageData.id);
+    console.log('Source URL:', url.trim());
     console.log('Additional info:', additionalInfo);
 
     return res.status(200).json({
@@ -447,15 +485,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       message: 'Import from URL completed successfully',
       passageId: passageData.id,
       title: title,
+      sourceUrl: validatedUrl,
+      importedAt: new Date().toISOString(),
       additionalInfo
     });
 
   } catch (error) {
-    console.error('Error during import from URL:', error);
+    console.error('=== IMPORT FROM URL ERROR ===');
+    console.error('URL:', url);
+    console.error('Error:', error);
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    // Provide more specific error messages
+    let userFriendlyMessage = errorMessage;
+    if (errorMessage.includes('fetch')) {
+      userFriendlyMessage = 'Không thể truy cập URL. Vui lòng kiểm tra URL và kết nối mạng.';
+    } else if (errorMessage.includes('JSON')) {
+      userFriendlyMessage = 'Nội dung URL không phải là JSON hợp lệ.';
+    } else if (errorMessage.includes('parse')) {
+      userFriendlyMessage = 'Không thể phân tích nội dung từ URL.';
+    }
+    
     return res.status(500).json({
       success: false,
-      message: 'Internal server error during import from URL',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      message: 'Import from URL failed',
+      error: userFriendlyMessage,
+      sourceUrl: validatedUrl,
+      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
     });
+  } finally {
+    await prisma.$disconnect();
   }
-} 
+}

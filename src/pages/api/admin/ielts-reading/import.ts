@@ -3,13 +3,78 @@ import { PrismaClient, IeltsQuestionType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+// Enhanced validation function
+function validateImportData(data: any): { isValid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  if (!data || typeof data !== 'object') {
+    errors.push('Dữ liệu phải là một object');
+    return { isValid: false, errors };
+  }
+  
+  // Check for new format (with metadata)
+   if (data.metadata && data.content) {
+     // New format validation
+     if (!data.content.readingPassage) {
+       errors.push('Thiếu readingPassage trong content');
+     } else if (!data.content.readingPassage.title || typeof data.content.readingPassage.title !== 'string') {
+       errors.push('Thiếu title trong readingPassage');
+     }
+     
+     if (!Array.isArray(data.content.questionGroups)) {
+       errors.push('questionGroups phải là array');
+     } else if (data.content.questionGroups.length === 0) {
+       errors.push('Phải có ít nhất 1 nhóm câu hỏi');
+     }
+   } else {
+    // Legacy format validation
+    if (!data.title || typeof data.title !== 'string') {
+      errors.push('Thiếu title');
+    }
+    
+    if (!data.passage || typeof data.passage !== 'string') {
+      errors.push('Thiếu passage');
+    }
+    
+    if (!Array.isArray(data.questionGroups)) {
+      errors.push('questionGroups phải là array');
+    } else if (data.questionGroups.length === 0) {
+      errors.push('Phải có ít nhất 1 nhóm câu hỏi');
+    }
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
+    return res.status(405).json({ 
+      success: false,
+      message: 'Method not allowed. Use POST.' 
+    });
   }
 
   try {
     const data = req.body;
+    
+    // Validate input data
+    const validation = validateImportData(data);
+    if (!validation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: `Dữ liệu không hợp lệ: ${validation.errors.join(', ')}`
+      });
+    }
+    
+    console.log('Received valid import data:', {
+      hasMetadata: !!data.metadata,
+      hasImportMetadata: !!data.importMetadata,
+      questionGroupsCount: data.content?.questionGroups?.length || data.questionGroups?.length || 0,
+      source: data.importMetadata?.source || 'unknown'
+    });
     console.log('=== IMPORTING IELTS READING DATA ===');
     let passagesCreated = 0;
     let questionsCreated = 0;
@@ -197,18 +262,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } else {
       throw new Error('Invalid data structure.');
     }
+    console.log('=== IMPORT COMPLETED ===');
+    console.log(`Created ${passagesCreated} passages and ${questionsCreated} questions`);
+    
+    // Log import metadata if available
+    if (data.importMetadata) {
+      console.log('Import metadata:', {
+        source: data.importMetadata.source,
+        sourceUrl: data.importMetadata.sourceUrl,
+        fileName: data.importMetadata.fileName,
+        importedAt: data.importMetadata.importedAt
+      });
+    }
+
     res.status(200).json({
+      success: true,
       message: 'Import successful',
       passagesCreated,
-      questionsCreated
+      questionsCreated,
+      importMetadata: data.importMetadata || null
     });
   } catch (error) {
     console.error('=== IMPORT ERROR ===');
     console.error('Error:', error);
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
     res.status(500).json({
+      success: false,
       message: 'Import failed',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? error : undefined
     });
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
@@ -368,50 +455,95 @@ function processSimpleQuestionGroup(group: any, groupId: string) {
   });
 }
 
-// Giữ nguyên hàm mapQuestionType như cũ, có thể bổ sung thêm mapping nếu cần
+// Enhanced helper function to map and validate question types
 function mapQuestionType(type: string): string {
-  console.log('=== MAPPING QUESTION TYPE ===');
-  console.log('Input type:', type);
+  // Trim input but preserve case for uppercase variants
+  const trimmedType = type?.trim() || '';
+  const normalizedType = trimmedType.toLowerCase();
   
+  // Comprehensive type mapping with aliases - mapped to actual Prisma enum values
   const typeMap: { [key: string]: string } = {
+    // Uppercase variants (from JSON files)
     'MATCHING_INFORMATION': 'matching_information',
     'MULTIPLE_CHOICE_MULTIPLE_ANSWERS': 'multiple_choice_group',
     'COMPLETION': 'summary_completion',
     'TRUE_FALSE_NOT_GIVEN': 'true_false_not_given',
-    'true_false_not_given': 'true_false_not_given',
     'YES_NO_NOT_GIVEN': 'yes_no_not_given',
-    'yes_no_not_given': 'yes_no_not_given',
     'MATCHING_HEADINGS': 'matching_headings',
-    'matching_headings': 'matching_headings',
     'MATCHING_FEATURES': 'matching_features',
-    'matching_features': 'matching_features',
     'MATCHING_SENTENCE_ENDINGS': 'matching_sentence_endings',
-    'matching_sentence_endings': 'matching_sentence_endings',
     'SENTENCE_COMPLETION': 'sentence_completion',
-    'sentence_completion': 'sentence_completion',
-    'SUMMARY_COMPLETION': 'summary_completion',
-    'summary_completion': 'summary_completion',
     'NOTE_COMPLETION': 'note_completion',
-    'note_completion': 'note_completion',
     'TABLE_COMPLETION': 'table_completion',
-    'table_completion': 'table_completion',
     'FLOW_CHART_COMPLETION': 'flow_chart_completion',
-    'flow_chart_completion': 'flow_chart_completion',
     'DIAGRAM_LABELLING': 'diagram_labelling',
-    'diagram_labelling': 'diagram_labelling',
     'SHORT_ANSWER_QUESTIONS': 'short_answer_questions',
-    'short_answer_questions': 'short_answer_questions',
     'MULTIPLE_CHOICE': 'multiple_choice',
-    'multiple_choice': 'multiple_choice',
     'MULTIPLE_CHOICE_5': 'multiple_choice_5',
+    
+    // Multiple choice types
+    'multiple_choice': 'multiple_choice',
+    'multiplechoice': 'multiple_choice',
+    'mc': 'multiple_choice',
+    'choice': 'multiple_choice',
     'multiple_choice_5': 'multiple_choice_5',
-    'MULTIPLE_CHOICE_GROUP': 'multiple_choice_group',
-    'multiple_choice_group': 'multiple_choice_group'
+    'multiple_choice_group': 'multiple_choice_group',
+    'multiple_choice_multiple_answers': 'multiple_choice_group',
+    
+    // True/False/Not Given
+    'true_false_not_given': 'true_false_not_given',
+    'true/false/not given': 'true_false_not_given',
+    'tfng': 'true_false_not_given',
+    'truefalse': 'true_false_not_given',
+    
+    // Yes/No/Not Given
+    'yes_no_not_given': 'yes_no_not_given',
+    'yes/no/not given': 'yes_no_not_given',
+    'ynng': 'yes_no_not_given',
+    'yesno': 'yes_no_not_given',
+    
+    // Completion types
+    'completion': 'summary_completion',
+    'sentence_completion': 'sentence_completion',
+    'fill_in_blank': 'sentence_completion',
+    'fill_blank': 'sentence_completion',
+    'blank': 'sentence_completion',
+    'gap_fill': 'sentence_completion',
+    'summary_completion': 'summary_completion',
+    'note_completion': 'note_completion',
+    'table_completion': 'table_completion',
+    'flow_chart_completion': 'flow_chart_completion',
+    
+    // Matching types
+    'matching_headings': 'matching_headings',
+    'matching headings': 'matching_headings',
+    'headings': 'matching_headings',
+    'matching_information': 'matching_information',
+    'matching_features': 'matching_features',
+    'matching_sentence_endings': 'matching_sentence_endings',
+    'matching': 'matching_information',
+    'match': 'matching_information',
+    
+    // Short answer
+    'short_answer': 'short_answer_questions',
+    'short answer': 'short_answer_questions',
+    'shortanswer': 'short_answer_questions',
+    'short': 'short_answer_questions',
+    'short_answer_questions': 'short_answer_questions',
+    
+    // Diagram labelling
+    'diagram_labelling': 'diagram_labelling',
+    'diagram': 'diagram_labelling',
+    'labelling': 'diagram_labelling'
   };
   
-  const mappedType = typeMap[type] || 'multiple_choice';
-  console.log('Mapped type:', mappedType);
-  console.log('=== END MAPPING ===');
+  // Try exact match first (for uppercase variants), then lowercase match
+  const mappedType = typeMap[trimmedType] || typeMap[normalizedType];
+  
+  if (!mappedType) {
+    console.warn(`Unknown question type: "${type}", defaulting to multiple_choice`);
+    return 'multiple_choice';
+  }
   
   return mappedType;
-} 
+}
