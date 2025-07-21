@@ -38,8 +38,20 @@ async function findNextLearningDate(firebase_uid: string) {
     );
 
     if (futureTerms && (futureTerms as any[]).length > 0 && (futureTerms as any[])[0].next_date !== '9999-12-31') {
+      let nextDate = (futureTerms as any[])[0].next_date;
+      
+      // Chuyển đổi timestamp thành định dạng yyyy-mm-dd nếu cần
+      if (typeof nextDate === 'number' || (typeof nextDate === 'string' && /^\d+$/.test(nextDate))) {
+        const date = new Date(Number(nextDate));
+        nextDate = date.toISOString().slice(0, 10);
+      } else if (nextDate instanceof Date) {
+        nextDate = nextDate.toISOString().slice(0, 10);
+      } else if (typeof nextDate === 'string' && nextDate.length > 10) {
+        nextDate = nextDate.slice(0, 10);
+      }
+      
       return {
-        nextDate: (futureTerms as any[])[0].next_date,
+        nextDate: nextDate,
         totalTerms: (futureTerms as any[])[0].total_terms
       };
     }
@@ -193,10 +205,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.log('--- Ngày gần nhất có ôn tập ---');
         console.log('Ngày:', nextLearningInfo.nextDate);
         console.log('Số từ:', nextLearningInfo.totalTerms);
+        // Đảm bảo nextDate ở định dạng yyyy-mm-dd
+        let formattedNextDate = nextLearningInfo.nextDate;
+        if (typeof formattedNextDate === 'number' || (typeof formattedNextDate === 'string' && /^\d+$/.test(formattedNextDate))) {
+          const date = new Date(Number(formattedNextDate));
+          formattedNextDate = date.toISOString().slice(0, 10);
+        } else if (formattedNextDate instanceof Date) {
+          formattedNextDate = formattedNextDate.toISOString().slice(0, 10);
+        } else if (typeof formattedNextDate === 'string' && formattedNextDate.length > 10) {
+          formattedNextDate = formattedNextDate.slice(0, 10);
+        }
+        
         // Lấy chi tiết các từ và chiều của ngày gần nhất
         const [termsNext] = await db.query(
           `SELECT * FROM terms WHERE firebase_uid = ? AND ((DATE(review_time_en) = ? AND level_en > 0) OR (DATE(review_time_vi) = ? AND level_vi > 0))`,
-          [firebase_uid, nextLearningInfo.nextDate, nextLearningInfo.nextDate]
+          [firebase_uid, formattedNextDate, formattedNextDate]
         );
         // Đếm số từ và số lượt học (chiều) thực tế
         let totalWords = 0;
@@ -280,4 +303,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.error('Error fetching terms:', error);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
-} 
+}

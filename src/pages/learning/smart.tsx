@@ -132,8 +132,11 @@ const SmartLearningPage = () => {
   // Thêm state cho chế độ nhân từ
   const [lenientMode, setLenientMode] = useState<boolean>(true);
   // Thêm state cho chức năng phát âm
-  const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
+  // Thêm state cho preloading âm thanh
+  const [preloadedAudio, setPreloadedAudio] = useState<{[key: string]: HTMLAudioElement}>({});
+  const [isPreloading, setIsPreloading] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -305,6 +308,16 @@ const SmartLearningPage = () => {
       setCurrentIndex(0);
       setStats({ correct: 0, total: 0 });
       
+      // Preload âm thanh cho từ đầu tiên
+      if (learningItems[0]) {
+        preloadAudio(learningItems[0].term.vocab);
+      }
+      
+      // Preload âm thanh cho từ thứ hai (nếu có)
+      if (learningItems.length > 1) {
+        setTimeout(() => preloadAudio(learningItems[1].term.vocab), 300);
+      }
+      
       setTimeout(() => {
         if (inputRef.current) {
           inputRef.current.focus();
@@ -331,6 +344,76 @@ const SmartLearningPage = () => {
   };
 
   // Hàm phát âm thanh
+  // Hàm preload âm thanh cho từ
+  const preloadAudio = async (word: string) => {
+    if (!word || preloadedAudio[word]) return;
+    
+    try {
+      setIsPreloading(true);
+      const response = await fetch(`/api/cambridge-audio?word=${encodeURIComponent(word)}`);
+      const data = await response.json();
+      
+      if (response.ok && data.audioUrl) {
+        const audio = new Audio(data.audioUrl);
+        audio.preload = 'auto';
+        
+        // Đợi audio load xong
+        await new Promise((resolve, reject) => {
+          audio.oncanplaythrough = resolve;
+          audio.onerror = reject;
+          audio.load();
+        });
+        
+        setPreloadedAudio(prev => ({
+          ...prev,
+          [word]: audio
+        }));
+        console.log(`Preloaded audio for: ${word}`);
+      }
+    } catch (error) {
+      console.error('Error preloading audio:', error);
+    } finally {
+      setIsPreloading(false);
+    }
+  };
+
+  // Hàm phát âm ngay lập tức từ cache (dùng khi kiểm tra đáp án)
+  const playAudioInstant = async (word: string) => {
+    if (!word || isPlayingAudio) return;
+    
+    setIsPlayingAudio(true);
+    setAudioError(null);
+    
+    try {
+      // Ưu tiên sử dụng âm thanh đã preload
+      if (preloadedAudio[word]) {
+        const audio = preloadedAudio[word];
+        audio.onended = () => setIsPlayingAudio(false);
+        audio.onerror = () => {
+          setIsPlayingAudio(false);
+          setAudioError('Không thể phát âm thanh');
+        };
+        
+        // Phát ngay lập tức không delay
+        try {
+          await audio.play();
+        } catch (error) {
+          console.error('Error playing preloaded audio:', error);
+          setAudioError('Lỗi khi phát âm thanh');
+          setIsPlayingAudio(false);
+        }
+        return;
+      }
+      
+      // Fallback nếu chưa preload - phát với delay tối thiểu
+      playAudio(word);
+    } catch (error) {
+      console.error('Error in playAudioInstant:', error);
+      setAudioError('Lỗi khi phát âm thanh');
+      setIsPlayingAudio(false);
+    }
+  };
+
   const playAudio = async (word: string) => {
     if (!word || isPlayingAudio) return;
     
@@ -338,6 +421,29 @@ const SmartLearningPage = () => {
     setAudioError(null);
     
     try {
+      // Kiểm tra xem có âm thanh đã preload không
+      if (preloadedAudio[word]) {
+        const audio = preloadedAudio[word];
+        audio.onended = () => setIsPlayingAudio(false);
+        audio.onerror = () => {
+          setIsPlayingAudio(false);
+          setAudioError('Không thể phát âm thanh');
+        };
+        
+        // Delay ngắn cho trường hợp nhấn nút phát âm thủ công
+        setTimeout(async () => {
+          try {
+            await audio.play();
+          } catch (error) {
+            console.error('Error playing preloaded audio:', error);
+            setAudioError('Lỗi khi phát âm thanh');
+            setIsPlayingAudio(false);
+          }
+        }, 50);
+        return;
+      }
+      
+      // Fallback: load và phát ngay nếu chưa preload
       const response = await fetch(`/api/cambridge-audio?word=${encodeURIComponent(word)}`);
       const data = await response.json();
       
@@ -348,7 +454,16 @@ const SmartLearningPage = () => {
           setIsPlayingAudio(false);
           setAudioError('Không thể phát âm thanh');
         };
-        await audio.play();
+        
+        setTimeout(async () => {
+          try {
+            await audio.play();
+          } catch (error) {
+            console.error('Error playing audio:', error);
+            setAudioError('Lỗi khi phát âm thanh');
+            setIsPlayingAudio(false);
+          }
+        }, 100);
       } else {
         setAudioError(data.error || 'Không tìm thấy âm thanh cho từ này');
         setIsPlayingAudio(false);
@@ -393,10 +508,8 @@ const SmartLearningPage = () => {
     setStats(prev => ({ ...prev, total: prev.total + 1, correct: isCorrect ? prev.correct + 1 : prev.correct }));
     showingResultRef.current = true;
     
-    // Tự động phát âm từ tiếng Anh trong cả hai trường hợp (en_to_vi và vi_to_en)
-    setTimeout(() => {
-      playAudio(currentItem.term.vocab);
-    }, 500); // Delay 500ms để người dùng có thể thấy kết quả trước
+    // Phát âm ngay lập tức khi kiểm tra đáp án để giảm độ trễ (không delay)
+    playAudioInstant(currentItem.term.vocab);
     try {
       if (!user || !user.uid) {
         setError("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.");
@@ -441,20 +554,35 @@ const SmartLearningPage = () => {
 
   const nextTerm = () => {
     if (currentIndex < learningItems.length - 1) {
-      setCurrentIndex(prev => prev + 1);
-            setIsAnswerCorrect(null);
-            setUserAnswer('');
+      const nextIndex = currentIndex + 1;
+      setCurrentIndex(nextIndex);
+      setIsAnswerCorrect(null);
+      setUserAnswer('');
       
       showingResultRef.current = false;
+      
+      // Preload âm thanh cho từ tiếp theo
+      const nextItem = learningItems[nextIndex];
+      if (nextItem) {
+        preloadAudio(nextItem.term.vocab);
+      }
+      
+      // Preload âm thanh cho từ sau nữa (nếu có)
+      if (nextIndex + 1 < learningItems.length) {
+        const nextNextItem = learningItems[nextIndex + 1];
+        if (nextNextItem) {
+          setTimeout(() => preloadAudio(nextNextItem.term.vocab), 500);
+        }
+      }
       
       setTimeout(() => {
         if (inputRef.current) {
           inputRef.current.focus();
         }
       }, 100);
-          } else {
-            setSessionState(SessionState.FINISHED);
-          }
+    } else {
+      setSessionState(SessionState.FINISHED);
+    }
   };
 
   const handleKeyPress = (e: ReactKeyboardEvent) => {
@@ -755,26 +883,38 @@ const SmartLearningPage = () => {
                       <p className="text-3xl text-gray-50 font-medium">
                         {getCorrectAnswer()}
                       </p>
-                      <button
-                        onClick={() => playAudio(getCurrentItem()?.term.vocab || '')}
-                        disabled={isPlayingAudio}
-                        className={`ml-4 p-3 rounded-full transition-all duration-200 ${
-                          isPlayingAudio 
-                            ? 'bg-primary-300 text-gray-800 cursor-not-allowed' 
-                            : 'bg-primary-200 text-gray-800 hover:bg-primary-300 hover:scale-110'
-                        }`}
-                        title="Phát âm từ tiếng Anh"
-                      >
-                        {isPlayingAudio ? (
-                          <svg className="w-6 h-6 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
-                          </svg>
-                        ) : (
-                          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-                          </svg>
+                      <div className="flex items-center ml-4">
+                        {preloadedAudio[getCurrentItem()?.term.vocab || ''] && (
+                          <div className="mr-2 px-2 py-1 bg-green-600 text-green-100 text-xs rounded-full">
+                            ⚡ Sẵn sàng
+                          </div>
                         )}
-                      </button>
+                        {isPreloading && (
+                          <div className="mr-2 px-2 py-1 bg-yellow-600 text-yellow-100 text-xs rounded-full animate-pulse">
+                            📡 Đang tải...
+                          </div>
+                        )}
+                        <button
+                          onClick={() => playAudio(getCurrentItem()?.term.vocab || '')}
+                          disabled={isPlayingAudio}
+                          className={`p-3 rounded-full transition-all duration-200 ${
+                            isPlayingAudio 
+                              ? 'bg-primary-300 text-gray-800 cursor-not-allowed' 
+                              : 'bg-primary-200 text-gray-800 hover:bg-primary-300 hover:scale-110'
+                          }`}
+                          title={preloadedAudio[getCurrentItem()?.term.vocab || ''] ? "Phát âm từ tiếng Anh (Đã tải sẵn)" : "Phát âm từ tiếng Anh"}
+                        >
+                          {isPlayingAudio ? (
+                            <svg className="w-6 h-6 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                            </svg>
+                          ) : (
+                            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                            </svg>
+                          )}
+                        </button>
+                      </div>
                     </div>
                     {audioError && (
                       <p className="text-error-200 text-sm mt-2">{audioError}</p>
