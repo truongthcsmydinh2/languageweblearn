@@ -26,6 +26,7 @@ export interface ImportQuestionGroup {
   startQuestion?: number;
   endQuestion?: number;
   questions: ImportQuestion[];
+  options?: string[];
   contentSegments?: {
     type: 'text' | 'blank';
     value?: string;

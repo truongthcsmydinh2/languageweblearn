@@ -267,15 +267,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           });
           
           // Prepare questions for batch creation
-          const questionsToCreate = group.questions.map((question: any, i: number) => ({
-            group_id: groupRecord.id,
-            question_text: question.questionText || '',
-            question_type: questionType,
-            options: question.options ? JSON.stringify(question.options) : null,
-            correct_answer: question.answer || '',
-            explanation: question.guide || null,
-            order_index: question.questionNumber || (i + 1)
-          }));
+          const questionsToCreate = group.questions.map((question: any, i: number) => {
+            // Handle options conversion from object format to string array
+            let processedOptions = null;
+            if (Array.isArray(question.options)) {
+              const convertedOptions = question.options.map((option: any) => {
+                // If option is an object with value property, extract the value
+                if (typeof option === 'object' && option !== null && option.value) {
+                  return String(option.value);
+                }
+                // Otherwise, convert to string directly
+                return String(option);
+              });
+              processedOptions = JSON.stringify(convertedOptions);
+            } else if (question.options) {
+              processedOptions = JSON.stringify(question.options);
+            }
+            
+            return {
+              group_id: groupRecord.id,
+              question_text: question.questionText || '',
+              question_type: questionType,
+              options: processedOptions,
+              correct_answer: question.answer || '',
+              explanation: question.guide || null,
+              order_index: question.questionNumber || (i + 1)
+            };
+          });
           
           // Create questions in batch
           if (questionsToCreate.length > 0) {
@@ -333,17 +351,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
 
         // Chuẩn hóa paragraphs cho passage_data
-        const formattedParagraphs = readingPassage.paragraphs.map((p: any, index: number) => {
-          if (typeof p === 'string') {
-            const match = p.match(/^([A-Z])\. *(.*)/); // Bỏ flag /s
-            if (match) {
-              return { id: match[1], content: match[2].trim() };
+        let formattedParagraphs = [];
+        if (readingPassage.paragraphs && Array.isArray(readingPassage.paragraphs)) {
+          formattedParagraphs = readingPassage.paragraphs.map((p: any, index: number) => {
+            if (typeof p === 'string') {
+              const match = p.match(/^([A-Z])\. *(.*)/); // Bỏ flag /s
+              if (match) {
+                return { id: match[1], content: match[2].trim() };
+              }
+              return { id: String.fromCharCode(65 + index), content: p };
             }
-            return { id: String.fromCharCode(65 + index), content: p };
-          }
-          // Nếu đã là object đúng chuẩn thì giữ nguyên
-          return p;
-        });
+            // Nếu đã là object đúng chuẩn thì giữ nguyên
+            return p;
+          });
+        } else if (readingPassage.content) {
+          // Nếu không có paragraphs, tạo một paragraph từ content
+          formattedParagraphs = [{ id: 'A', content: readingPassage.content }];
+        }
 
         const passageToCreate = {
           title: readingPassage.title || metadata.title,
@@ -353,7 +377,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             paragraphs: formattedParagraphs,
           },
           summary: data.summary || {},
-          level: 'INTERMEDIATE' as any,
+          level: 'intermediate' as any,
           category: metadata.title,
           time_limit: 60,
           is_active: true,
@@ -386,18 +410,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           let groupOptions = null;
           if (group.options) {
             if (Array.isArray(group.options)) {
-              groupOptions = group.options;
+              // Convert options from object format to string array if needed
+              groupOptions = group.options.map((option: any) => {
+                if (typeof option === 'object' && option !== null && option.value) {
+                  return String(option.value);
+                }
+                return String(option);
+              });
             } else if (typeof group.options === 'object') {
-              // Chuyển object key-value thành mảng {key, value}
-              groupOptions = Object.entries(group.options).map(([key, value]) => ({ key, value }));
+              // Chuyển object key-value thành mảng string
+              groupOptions = Object.entries(group.options).map(([key, value]) => String(value));
             }
           } else if (group.questions && group.questions[0]?.options) {
             // Một số loại options nằm trong từng câu hỏi
             const qOpts = group.questions[0].options;
             if (Array.isArray(qOpts)) {
-              groupOptions = qOpts;
+              groupOptions = qOpts.map((option: any) => {
+                if (typeof option === 'object' && option !== null && option.value) {
+                  return String(option.value);
+                }
+                return String(option);
+              });
             } else if (typeof qOpts === 'object') {
-              groupOptions = Object.entries(qOpts).map(([key, value]) => ({ key, value }));
+              groupOptions = Object.entries(qOpts).map(([key, value]) => String(value));
             }
           }
 
@@ -425,30 +460,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
           // Chuẩn hóa question_type cho mọi loại
           const questionType = mapQuestionType(group.type);
+          
+          // Đặc biệt xử lý cho choose_two_letters - đảm bảo luôn có options
+          if (questionType === 'choose_two_letters' && (!groupOptions || groupOptions.length === 0)) {
+            // Tạo options mặc định A-E cho choose_two_letters
+            groupOptions = ['A', 'B', 'C', 'D', 'E'];
+            logger.info('Added default options for choose_two_letters', { groupOptions });
+          }
+
+          // Đảm bảo content và options luôn là string hoặc null
+          let groupContentStr = groupContent;
+          if (groupContentStr && typeof groupContentStr !== 'string') {
+            groupContentStr = JSON.stringify(groupContentStr);
+          }
+          let groupOptionsStr = groupOptions;
+          if (groupOptionsStr && typeof groupOptionsStr !== 'string') {
+            groupOptionsStr = JSON.stringify(groupOptionsStr);
+          }
 
           const questionGroupData = {
             instructions: instructions,
             question_type: questionType,
             display_order: groupIndex + 1, // Use sequential order to avoid conflicts
             passage_id: passageRecord.id,
-            options: groupOptions ? groupOptions : undefined,
-            content: groupContent ? groupContent : undefined
+            options: groupOptionsStr ?? null,
+            content: groupContentStr ?? null
           };
 
-          logger.info('Group data to save', { questionGroupData });
-
-          // Đảm bảo content và options luôn là string hoặc null
-          let groupContentStr = questionGroupData.content;
-          if (groupContentStr && typeof groupContentStr !== 'string') {
-            groupContentStr = JSON.stringify(groupContentStr);
-          }
-          let groupOptionsStr = questionGroupData.options;
-          if (groupOptionsStr && typeof groupOptionsStr !== 'string') {
-            groupOptionsStr = JSON.stringify(groupOptionsStr);
-          }
-          // Gán lại vào object lưu DB
-          questionGroupData.content = groupContentStr ?? null;
-          questionGroupData.options = groupOptionsStr ?? null;
+          logger.info('Group data to save', { 
+            questionGroupData,
+            originalGroupOptions: groupOptions,
+            processedGroupOptions: groupOptionsStr
+          });
 
           const groupRecord = await tx.ielts_reading_question_groups.create({
             data: questionGroupData,
@@ -650,9 +693,20 @@ function processCompletionGroup(group: any, groupId: string) {
 }
 
 function processMultipleAnswerGroup(group: any, groupId: string) {
-  const options = Array.isArray(group.options)
+  let options = Array.isArray(group.options)
     ? group.options
     : Object.values(group.options || {});
+  
+  // Convert options from object format to string array if needed
+  if (Array.isArray(options)) {
+    options = options.map((option: any) => {
+      if (typeof option === 'object' && option !== null && option.value) {
+        return String(option.value);
+      }
+      return String(option);
+    });
+  }
+  
   const correctAnswer = Array.isArray(group.answers)
     ? group.answers.join(', ')
     : group.answers || '';
@@ -670,10 +724,17 @@ function processMultipleAnswerGroup(group: any, groupId: string) {
       // ... các trường khác nếu có ...
     });
     console.log('=== END IMPORT QUESTION DEBUG ===');
+    
+    // Serialize options if it's an object/array
+    let serializedOptions = options;
+    if (options && typeof options === 'object') {
+      serializedOptions = JSON.stringify(options);
+    }
+    
     return {
       question_text: group.content || group.instructions || '',
       question_type: mapQuestionType(group.type),
-      options,
+      options: serializedOptions,
       correct_answer: correctAnswer,
       explanation: q.guide || group.guide || '',
       order_index: q.id || idx + 1,
@@ -684,7 +745,18 @@ function processMultipleAnswerGroup(group: any, groupId: string) {
 
 function processMatchingHeadings(group: any, groupId: string) {
   // Có thể có headingOptions
-  const options = group.headingOptions || null;
+  let options = group.headingOptions || null;
+  
+  // Convert options from object format to string array if needed
+  if (Array.isArray(options)) {
+    options = options.map((option: any) => {
+      if (typeof option === 'object' && option !== null && option.value) {
+        return String(option.value);
+      }
+      return String(option);
+    });
+  }
+  
   return group.questions.map((q: any, idx: number) => {
     // Trong vòng lặp tạo từng câu hỏi (trước khi lưu vào DB)
     console.log('=== IMPORT QUESTION DEBUG ===');
@@ -699,10 +771,17 @@ function processMatchingHeadings(group: any, groupId: string) {
       // ... các trường khác nếu có ...
     });
     console.log('=== END IMPORT QUESTION DEBUG ===');
+    
+    // Serialize options if it's an object/array
+    let serializedOptions = options;
+    if (options && typeof options === 'object') {
+      serializedOptions = JSON.stringify(options);
+    }
+    
     return {
       question_text: q.content,
       question_type: mapQuestionType(group.type),
-      options,
+      options: serializedOptions,
       correct_answer: q.answer,
       explanation: q.guide || '',
       order_index: q.id || idx + 1,
@@ -713,7 +792,18 @@ function processMatchingHeadings(group: any, groupId: string) {
 
 function processStandardMatchingGroup(group: any, groupId: string) {
   // Có thể có featureOptions hoặc các options khác
-  const options = group.featureOptions || group.options || null;
+  let options = group.featureOptions || group.options || null;
+  
+  // Convert options from object format to string array if needed
+  if (Array.isArray(options)) {
+    options = options.map((option: any) => {
+      if (typeof option === 'object' && option !== null && option.value) {
+        return String(option.value);
+      }
+      return String(option);
+    });
+  }
+  
   return group.questions.map((q: any, idx: number) => {
     // Trong vòng lặp tạo từng câu hỏi (trước khi lưu vào DB)
     console.log('=== IMPORT QUESTION DEBUG ===');
@@ -728,10 +818,17 @@ function processStandardMatchingGroup(group: any, groupId: string) {
       // ... các trường khác nếu có ...
     });
     console.log('=== END IMPORT QUESTION DEBUG ===');
+    
+    // Serialize options if it's an object/array
+    let serializedOptions = options;
+    if (options && typeof options === 'object') {
+      serializedOptions = JSON.stringify(options);
+    }
+    
     return {
       question_text: q.content,
       question_type: mapQuestionType(group.type),
-      options,
+      options: serializedOptions,
       correct_answer: q.answer,
       explanation: q.guide || '',
       order_index: q.id || idx + 1,
@@ -741,25 +838,61 @@ function processStandardMatchingGroup(group: any, groupId: string) {
 }
 
 function processSimpleQuestionGroup(group: any, groupId: string) {
-  const options = group.options || null;
+  let options = group.options || null;
+  
+  // Convert options from object format to string array if needed
+  if (Array.isArray(options)) {
+    options = options.map((option: any) => {
+      if (typeof option === 'object' && option !== null && option.value) {
+        return String(option.value);
+      }
+      return String(option);
+    });
+  }
+  
+  // Auto-generate options for choose_two_letters if missing
+  const questionType = mapQuestionType(group.type);
+  if (questionType === 'choose_two_letters' && (!options || options.length === 0)) {
+    options = ['A', 'B', 'C', 'D', 'E'];
+    console.log(`[processSimpleQuestionGroup] Auto-generated options for choose_two_letters:`, options);
+  }
+  
   return group.questions.map((q: any, idx: number) => {
+    // Use question-specific options if available, otherwise use group options
+    let questionOptions = q.options || options;
+    
+    // Auto-generate options for individual choose_two_letters questions if missing
+    if (questionType === 'choose_two_letters' && (!questionOptions || questionOptions.length === 0)) {
+      questionOptions = ['A', 'B', 'C', 'D', 'E'];
+      console.log(`[processSimpleQuestionGroup] Auto-generated question options for choose_two_letters question ${q.id}:`, questionOptions);
+    }
+    
     // Trong vòng lặp tạo từng câu hỏi (trước khi lưu vào DB)
     console.log('=== IMPORT QUESTION DEBUG ===');
     console.log({
       groupType: group.type,
+      mappedType: questionType,
       groupId,
       questionId: q.id,
       content: q.content,
       answer: q.answer,
-      options: q.options,
+      groupOptions: options,
+      questionOptions: questionOptions,
+      finalOptions: questionOptions,
       guide: q.guide,
-      // ... các trường khác nếu có ...
     });
     console.log('=== END IMPORT QUESTION DEBUG ===');
+    
+    // Serialize options if it's an object/array
+    let serializedOptions = questionOptions;
+    if (questionOptions && typeof questionOptions === 'object') {
+      serializedOptions = JSON.stringify(questionOptions);
+    }
+    
     return {
       question_text: q.content,
-      question_type: mapQuestionType(group.type),
-      options,
+      question_type: questionType,
+      options: serializedOptions,
       correct_answer: q.answer,
       explanation: q.guide || '',
       order_index: q.id || idx + 1,
@@ -806,6 +939,8 @@ function mapQuestionType(type: string): string {
     'multiple_choice_5': 'multiple_choice_5',
     'multiple_choice_group': 'multiple_choice_group',
     'multiple_choice_multiple_answers': 'multiple_choice_group',
+    'choose_two_letters': 'choose_two_letters',
+    'CHOOSE_TWO_LETTERS': 'choose_two_letters',
     
     // True/False/Not Given
     'true_false_not_given': 'true_false_not_given',
@@ -838,6 +973,8 @@ function mapQuestionType(type: string): string {
     'matching_information': 'matching_information',
     'matching_features': 'matching_features',
     'matching_sentence_endings': 'matching_sentence_endings',
+    'matching_phrases': 'matching_phrases',
+    'MATCHING_PHRASES': 'matching_phrases',
     'matching': 'matching_information',
     'match': 'matching_information',
     

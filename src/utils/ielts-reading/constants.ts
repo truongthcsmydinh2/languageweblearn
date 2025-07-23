@@ -16,7 +16,9 @@ export const QUESTION_TYPES: { value: QuestionType; label: string }[] = [
   { value: 'table_completion', label: 'Table Completion' },
   { value: 'flow_chart_completion', label: 'Flow Chart Completion' },
   { value: 'diagram_labelling', label: 'Diagram Labelling' },
-  { value: 'short_answer_questions', label: 'Short Answer Questions' }
+  { value: 'short_answer_questions', label: 'Short Answer Questions' },
+  { value: 'matching_phrases', label: 'Matching Phrases' },
+  { value: 'choose_two_letters', label: 'Choose Two Letters' }
 ];
 
 export const PASSAGE_LEVELS = [

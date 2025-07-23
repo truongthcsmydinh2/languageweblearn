@@ -109,6 +109,8 @@ function mapQuestionType(type: string): IeltsQuestionType {
     'MATCHING_HEADINGS': 'matching_headings',
     'MATCHING_FEATURES': 'matching_features',
     'MATCHING_SENTENCE_ENDINGS': 'matching_sentence_endings',
+    'MATCHING_PHRASES': 'matching_phrases',
+    'CHOOSE_TWO_LETTERS': 'choose_two_letters',
     'SENTENCE_COMPLETION': 'sentence_completion',
     'NOTE_COMPLETION': 'note_completion',
     'TABLE_COMPLETION': 'table_completion',
@@ -128,6 +130,8 @@ function mapQuestionType(type: string): IeltsQuestionType {
     'matching_information': 'matching_information',
     'matching_features': 'matching_features',
     'matching_sentence_endings': 'matching_sentence_endings',
+    'matching_phrases': 'matching_phrases',
+    'choose_two_letters': 'choose_two_letters',
     'sentence_completion': 'sentence_completion',
     'summary_completion': 'summary_completion',
     'note_completion': 'note_completion',
@@ -193,9 +197,16 @@ function processQuestionGroups(questionGroups: any[], passageId: number) {
     let groupOptions = null;
     if (group.options) {
       if (Array.isArray(group.options)) {
-        groupOptions = group.options;
+        // Convert options from object format to string array if needed
+        groupOptions = group.options.map((option: any) => {
+          if (typeof option === 'object' && option !== null && option.value) {
+            return String(option.value);
+          }
+          return String(option);
+        });
       } else if (typeof group.options === 'object') {
-        groupOptions = Object.entries(group.options).map(([key, value]) => ({ key, value }));
+        // Convert object key-value to string array
+        groupOptions = Object.entries(group.options).map(([key, value]) => String(value));
       }
     }
     

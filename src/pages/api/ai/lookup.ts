@@ -12,7 +12,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' + process.env.GEMINI_API_KEY, {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + process.env.GEMINI_API_KEY, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -21,13 +21,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         contents: [{
           parts: [{
             text: `Analyze the word or phrase "${text}" and provide:
-1. Word type (noun, verb, adjective, etc.) in Vietnamese
+1. Word type (noun, verb, adjective, etc.) in English
 2. Vietnamese meaning
 3. An example sentence in English
 
 Respond in JSON format:
 {
-  "type": "loại từ",
+  "type": "adjective",
   "meaning": "nghĩa tiếng Việt",
   "example": "example sentence"
 }`
@@ -36,10 +36,17 @@ Respond in JSON format:
       })
     });
 
+    if (!response.ok) {
+      console.error('Gemini API error:', response.status, response.statusText);
+      return res.status(500).json({ message: 'Failed to call Gemini API' });
+    }
+
     const data = await response.json();
+    console.log('Gemini API response:', JSON.stringify(data, null, 2));
     
     if (data.candidates && data.candidates[0] && data.candidates[0].content) {
       const content = data.candidates[0].content.parts[0].text;
+      console.log('AI content:', content);
       
       try {
         // Try to parse JSON from the response
@@ -53,10 +60,25 @@ Respond in JSON format:
       }
       
       // Fallback: extract information manually
+      const lines = content.split('\n').filter(line => line.trim());
+      let type = 'word';
+      let meaning = 'Không có nghĩa';
+      let example = 'Không có ví dụ';
+      
+      for (const line of lines) {
+        if (line.toLowerCase().includes('type') || line.includes('loại')) {
+          type = line.split(':')[1]?.trim() || type;
+        } else if (line.toLowerCase().includes('meaning') || line.includes('nghĩa')) {
+          meaning = line.split(':')[1]?.trim() || meaning;
+        } else if (line.toLowerCase().includes('example') || line.includes('ví dụ')) {
+          example = line.split(':')[1]?.trim() || example;
+        }
+      }
+      
       return res.status(200).json({
-        type: 'từ',
-        meaning: content.substring(0, 100) + '...',
-        example: 'Example not available'
+        type: type.replace(/["']/g, ''),
+        meaning: meaning.replace(/["']/g, ''),
+        example: example.replace(/["']/g, '')
       });
     }
 

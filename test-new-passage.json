@@ -1,0 +1,34 @@
+{
+  "metadata": {
+    "title": "New Test Passage",
+    "id": "test-new-002",
+    "link": "test-new",
+    "description": "Another test for choose_two_letters without options"
+  },
+  "content": {
+    "readingPassage": {
+      "title": "Environmental Protection",
+      "content": "Environmental protection has become a global priority. Governments worldwide are implementing various strategies to combat pollution. These include renewable energy initiatives, waste reduction programs, and conservation efforts. Citizens can contribute by recycling, using public transportation, and supporting eco-friendly products."
+    },
+    "questionGroups": [
+      {
+        "type": "choose_two_letters",
+        "name": "Environmental Strategies",
+        "range": "Questions 1-2",
+        "instructions": "Choose TWO letters, A-E. Which TWO strategies are mentioned for environmental protection?",
+        "questions": [
+          {
+            "id": 1,
+            "content": "Which TWO government strategies are mentioned?",
+            "answer": "A, B"
+          },
+          {
+            "id": 2,
+            "content": "Which TWO citizen actions are suggested?",
+            "answer": "C, E"
+          }
+        ]
+      }
+    ]
+  }
+}

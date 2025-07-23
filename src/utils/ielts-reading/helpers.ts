@@ -31,7 +31,9 @@ export const getQuestionTypeLabel = (type: QuestionType): string => {
     'table_completion': 'Table Completion',
     'flow_chart_completion': 'Flow Chart Completion',
     'diagram_labelling': 'Diagram Labelling',
-    'short_answer_questions': 'Short Answer Questions'
+    'short_answer_questions': 'Short Answer Questions',
+    'matching_phrases': 'Matching Phrases',
+    'choose_two_letters': 'Choose Two Letters'
   };
   return typeMap[type] || type;
 };

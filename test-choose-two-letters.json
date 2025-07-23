@@ -1,0 +1,34 @@
+{
+  "metadata": {
+    "title": "Test Choose Two Letters",
+    "id": "test-choose-two-001",
+    "link": "test",
+    "description": "Test data for choose_two_letters question type"
+  },
+  "content": {
+    "readingPassage": {
+      "title": "Test Passage for Choose Two Letters",
+      "content": "This is a test passage. Climate change is one of the most pressing issues of our time. Scientists have identified several key factors that contribute to global warming. These include greenhouse gas emissions, deforestation, and industrial activities. The effects of climate change are already visible in many parts of the world, including rising sea levels, extreme weather events, and changes in precipitation patterns."
+    },
+    "questionGroups": [
+      {
+        "type": "choose_two_letters",
+        "name": "Choose Two Letters Test",
+        "range": "Questions 1-2",
+        "instructions": "Choose TWO letters, A-E. Which TWO of the following are mentioned as causes of climate change?",
+        "questions": [
+          {
+            "id": 1,
+            "content": "Which TWO of the following are mentioned as causes of climate change?",
+            "answer": "A, C"
+          },
+          {
+            "id": 2,
+            "content": "Which TWO effects of climate change are mentioned in the passage?",
+            "answer": "B, D"
+          }
+        ]
+      }
+    ]
+  }
+}

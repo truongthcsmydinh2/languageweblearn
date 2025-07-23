@@ -14,7 +14,9 @@ export type QuestionType =
   | 'table_completion'
   | 'flow_chart_completion'
   | 'diagram_labelling'
-  | 'short_answer_questions';
+  | 'short_answer_questions'
+  | 'matching_phrases'
+  | 'choose_two_letters';
 
 export interface Question {
   id: number;

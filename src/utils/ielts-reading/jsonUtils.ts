@@ -385,17 +385,41 @@ const cleanQuestionGroup = (group: any): ImportQuestionGroup => {
   // Handle different instruction formats
   const instructions = String(group.instructions || group.content || '').trim();
   
+  // Process group options
+  let groupOptions = null;
+  if (group.options) {
+    if (Array.isArray(group.options)) {
+      groupOptions = group.options.map((option: any) => {
+        if (typeof option === 'object' && option !== null && option.value) {
+          return String(option.value);
+        }
+        return String(option);
+      });
+    } else if (typeof group.options === 'object') {
+      groupOptions = Object.entries(group.options).map(([key, value]) => String(value));
+    }
+  }
+  
+  // Auto-generate options for choose_two_letters if missing
+  const groupType = String(group.type || '').trim().toLowerCase();
+  if ((groupType === 'choose_two_letters' || groupType === 'CHOOSE_TWO_LETTERS') && (!groupOptions || groupOptions.length === 0)) {
+    groupOptions = ['A', 'B', 'C', 'D', 'E'];
+    console.log('[cleanQuestionGroup] Auto-generated options for choose_two_letters:', groupOptions);
+  }
+  
   console.log('[cleanQuestionGroup] Processing group:', {
     type: group.type,
     name: group.name,
     hasInstructions: !!group.instructions,
     hasContent: !!group.content,
     hasContentSegments: !!group.contentSegments,
+    hasOptions: !!group.options,
+    processedOptions: groupOptions,
     questionsCount: questions.length,
     finalInstructions: instructions.substring(0, 100) + '...'
   });
   
-  return {
+  const cleanedGroup: ImportQuestionGroup = {
     type: String(group.type || '').trim(),
     name: String(group.name || '').trim(),
     description: String(group.description || '').trim(),
@@ -405,6 +429,13 @@ const cleanQuestionGroup = (group: any): ImportQuestionGroup => {
     questions,
     contentSegments: group.contentSegments // Preserve contentSegments for completion types
   };
+  
+  // Add options if they exist
+  if (groupOptions && groupOptions.length > 0) {
+    cleanedGroup.options = groupOptions;
+  }
+  
+  return cleanedGroup;
 };
 
 // Helper function to build question text from contentSegments
@@ -516,8 +547,16 @@ const cleanQuestion = (question: any, group?: any): ImportQuestion => {
     relatedParagraph: question.relatedParagraph ? Number(question.relatedParagraph) : null
   };
 
+  // Handle options conversion from object format to string array
   if (Array.isArray(question.options)) {
-    cleaned.options = question.options.map(String);
+    cleaned.options = question.options.map((option: any) => {
+      // If option is an object with value property, extract the value
+      if (typeof option === 'object' && option !== null && option.value) {
+        return String(option.value);
+      }
+      // Otherwise, convert to string directly
+      return String(option);
+    });
   }
 
   if (guide) {

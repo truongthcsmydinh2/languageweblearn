@@ -1,0 +1,65 @@
+{
+  "metadata": {
+    "title": "Test Choose Two Letters - Real Import",
+    "level": "intermediate"
+  },
+  "content": {
+    "readingPassage": {
+      "title": "The Impact of Technology on Education",
+      "subtitle": "How digital tools are transforming learning",
+      "paragraphs": [
+        {
+          "id": "A",
+          "content": "Technology has revolutionized the way we approach education. Digital tools and platforms have made learning more accessible and interactive than ever before. Students can now access vast amounts of information with just a few clicks, breaking down traditional barriers to knowledge."
+        },
+        {
+          "id": "B",
+          "content": "Online learning platforms have become increasingly sophisticated, offering personalized learning experiences tailored to individual student needs. These platforms use artificial intelligence to adapt content difficulty and pacing based on student performance and learning patterns."
+        },
+        {
+          "id": "C",
+          "content": "Virtual reality and augmented reality technologies are creating immersive learning environments that were previously impossible. Students can now take virtual field trips to historical sites, explore the human body in 3D, or conduct virtual science experiments safely."
+        },
+        {
+          "id": "D",
+          "content": "However, the digital divide remains a significant challenge. Not all students have equal access to technology and high-speed internet, creating disparities in educational opportunities. This gap has become more apparent during the COVID-19 pandemic when remote learning became necessary."
+        },
+        {
+          "id": "E",
+          "content": "Teachers are adapting their pedagogical approaches to incorporate technology effectively. Professional development programs are helping educators learn how to use digital tools to enhance rather than replace traditional teaching methods."
+        },
+        {
+          "id": "F",
+          "content": "Looking ahead, the future of education will likely involve a hybrid model combining the best of both digital and traditional learning approaches. This balanced approach aims to maximize the benefits of technology while maintaining the human connection that is essential for effective learning."
+        }
+      ]
+    },
+    "questionGroups": [
+      {
+        "type": "choose_two_letters",
+        "range": "Questions 1-3",
+        "instructions": "Choose TWO letters, A-F. Which TWO paragraphs contain the following information?",
+        "questions": [
+          {
+            "id": 1,
+            "content": "Which TWO paragraphs discuss the benefits of technology in education?",
+            "answer": "A,C",
+            "guide": "Look for paragraphs that highlight positive aspects and advantages of educational technology."
+          },
+          {
+            "id": 2,
+            "content": "Which TWO paragraphs mention challenges or problems with educational technology?",
+            "answer": "D,E",
+            "guide": "Focus on paragraphs that discuss difficulties, barriers, or issues related to technology in education."
+          },
+          {
+            "id": 3,
+            "content": "Which TWO paragraphs discuss future developments or predictions?",
+            "answer": "B,F",
+            "guide": "Look for paragraphs that talk about what will happen or what is expected to happen in the future."
+          }
+        ]
+      }
+    ]
+  }
+}

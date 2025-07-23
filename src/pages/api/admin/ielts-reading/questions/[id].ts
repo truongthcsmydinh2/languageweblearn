@@ -43,18 +43,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         content: group.instructions, // Sử dụng instructions làm content
         questionType: group.question_type,
         display_order: group.display_order,
-        questions: group.questions.map(question => ({
-          id: question.id,
-          question_text: question.question_text,
-          question_type: question.question_type,
-          options: question.options,
-          correct_answer: question.correct_answer,
-          explanation: question.explanation,
-          note: question.note,
-          order_index: question.order_index,
-          group_id: question.group_id,
-          passage_id: question.passage_id
-        }))
+        questions: group.questions.map(question => {
+          // Parse options if it's a string, otherwise use as array
+          let parsedOptions = question.options;
+          if (typeof question.options === 'string') {
+            try {
+              parsedOptions = JSON.parse(question.options);
+            } catch (e) {
+              console.error('Error parsing options for question', question.id, ':', e);
+              parsedOptions = [];
+            }
+          }
+          
+          // Ensure it's an array
+          if (!Array.isArray(parsedOptions)) {
+            parsedOptions = [];
+          }
+          
+          return {
+            id: question.id,
+            question_text: question.question_text,
+            question_type: question.question_type,
+            options: parsedOptions,
+            correct_answer: question.correct_answer,
+            explanation: question.explanation,
+            note: question.note,
+            order_index: question.order_index,
+            group_id: question.group_id,
+            passage_id: question.passage_id
+          };
+        })
       }));
 
       return res.status(200).json({

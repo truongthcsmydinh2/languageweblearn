@@ -151,8 +151,7 @@ export const getQuestionTypeRequirements = (type: string) => {
       description: 'Multiple choice with single correct answer'
     },
     'choose_two_letters': {
-      requiresOptions: true,
-      optionsCount: 5,
+      requiresOptions: false,
       answerFormat: 'Two letters separated by comma (e.g., A, C)',
       description: 'Choose two correct answers from options'
     },
@@ -172,7 +171,7 @@ export const getQuestionTypeRequirements = (type: string) => {
       description: 'Match paragraphs with appropriate headings'
     },
     'matching_phrases': {
-      requiresOptions: true,
+      requiresOptions: false,
       answerFormat: 'Letter corresponding to phrase',
       description: 'Match items with appropriate phrases'
     },

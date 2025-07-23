@@ -206,7 +206,7 @@ model ielts_reading_passages {
 model ielts_reading_question_groups {
   id            String                    @id @default(cuid())
   instructions  String                    @db.Text
-  question_type String
+  question_type IeltsQuestionType
   display_order Int                       @default(0)
   created_at    DateTime                  @default(now())
   updated_at    DateTime                  @default(now()) @updatedAt
@@ -348,4 +348,6 @@ enum IeltsQuestionType {
   flow_chart_completion
   diagram_labelling
   short_answer_questions
+  matching_phrases
+  choose_two_letters
 }

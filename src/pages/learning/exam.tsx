@@ -140,7 +140,8 @@ const ExamPage = () => {
           }
         });
         const data = await response.json();
-        setWords(data);
+        // API trả về { total, data: array }, cần lấy data
+        setWords(Array.isArray(data) ? data : (data.data || []));
         setLoading(false);
       } catch (err) {
         setError('Đã xảy ra lỗi khi tải từ vựng. Vui lòng thử lại sau.');
@@ -235,6 +236,10 @@ const ExamPage = () => {
 
   // Lọc từ vựng theo level đã chọn và firebase_uid
   const getFilteredWords = () => {
+    // Đảm bảo words là array trước khi filter
+    if (!Array.isArray(words)) {
+      return [];
+    }
     return words.filter(word => {
       const level = word.level_en || 0;
       return examSettings.selectedLevels.includes(level) && word.firebase_uid === user?.uid;
@@ -244,6 +249,10 @@ const ExamPage = () => {
   // Đếm từ vựng theo level và firebase_uid
   const getWordsByLevel = () => {
     const levelCounts: { [key: number]: number } = {};
+    // Đảm bảo words là array trước khi forEach
+    if (!Array.isArray(words)) {
+      return levelCounts;
+    }
     words.forEach(word => {
       if (word.firebase_uid === user?.uid) {
         const level = word.level_en || 0;
@@ -1383,4 +1392,4 @@ const ExamPage = () => {
   );
 };
 
-export default ExamPage; 
+export default ExamPage;

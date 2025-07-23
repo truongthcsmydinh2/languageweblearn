@@ -114,21 +114,39 @@ const QuestionList: React.FC<QuestionListProps> = ({
                   <div className="mb-2">
                     <div className="text-xs text-gray-500 mb-1">Options:</div>
                     <div className="grid grid-cols-1 gap-1">
-                      {question.options.map((option, optIndex) => (
-                        <div
-                          key={optIndex}
-                          className={`text-sm px-2 py-1 rounded ${
-                            option === question.correct_answer
-                              ? 'bg-green-100 text-green-800 font-medium'
-                              : 'bg-gray-50 text-gray-700'
-                          }`}
-                        >
-                          {String.fromCharCode(65 + optIndex)}. {option}
-                          {option === question.correct_answer && (
-                            <CheckCircle className="inline h-3 w-3 ml-1" />
-                          )}
-                        </div>
-                      ))}
+                      {(() => {
+                        // Parse options if it's a string, otherwise use as array
+                        let optionsArray = question.options;
+                        if (typeof question.options === 'string') {
+                          try {
+                            optionsArray = JSON.parse(question.options);
+                          } catch (e) {
+                            console.error('Error parsing options:', e);
+                            optionsArray = [];
+                          }
+                        }
+                        
+                        // Ensure it's an array
+                        if (!Array.isArray(optionsArray)) {
+                          optionsArray = [];
+                        }
+                        
+                        return optionsArray.map((option, optIndex) => (
+                          <div
+                            key={optIndex}
+                            className={`text-sm px-2 py-1 rounded ${
+                              option === question.correct_answer
+                                ? 'bg-green-100 text-green-800 font-medium'
+                                : 'bg-gray-50 text-gray-700'
+                            }`}
+                          >
+                            {String.fromCharCode(65 + optIndex)}. {option}
+                            {option === question.correct_answer && (
+                              <CheckCircle className="inline h-3 w-3 ml-1" />
+                            )}
+                          </div>
+                        ));
+                      })()}
                     </div>
                   </div>
                 )}
