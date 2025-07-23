@@ -41,6 +41,10 @@ function mapQuestionType(type) {
     'MULTIPLE_CHOICE': 'multiple_choice',
     'MULTIPLE_CHOICE_5': 'multiple_choice_5',
     
+    // Special combined completion types
+    'note_table_flowchart_diagram_completion': 'note_completion',
+    'NOTE_TABLE_FLOWCHART_DIAGRAM_COMPLETION': 'note_completion',
+    
     // Lowercase variants
     'matching_information': 'matching_information',
     'multiple_choice_multiple_answers': 'multiple_choice_group',

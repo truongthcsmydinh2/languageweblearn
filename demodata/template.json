@@ -1,0 +1,551 @@
+{
+    "ieltsQuestionTypeStandards": [
+    {
+      "type": "multiple_choice_single",
+      "name": "Multiple Choice (Single Answer)",
+      "description": "Câu hỏi trắc nghiệm chọn một đáp án đúng từ 4 lựa chọn A, B, C, D",
+      "instructions": "Choose the correct letter, A, B, C or D.",
+      "questionGroups": [
+        {
+          "groupName": null,
+          "questions": [
+            {
+              "id": 1,
+              "content": "[Nội dung câu hỏi]",
+              "options": [
+                {
+                  "key": "A",
+                  "value": "[Lựa chọn A]"
+                },
+                {
+                  "key": "B",
+                  "value": "[Lựa chọn B]"
+                },
+                {
+                  "key": "C",
+                  "value": "[Lựa chọn C]"
+                },
+                {
+                  "key": "D",
+                  "value": "[Lựa chọn D]"
+                }
+              ],
+              "answer": "C",
+              "guide": {
+                "explanation": "[Giải thích tại sao đáp án này đúng]",
+                "location": "[Vị trí trong bài đọc: Paragraph X, lines Y-Z]",
+                "strategy": "[Chiến lược làm bài: tìm từ khóa, đọc hiểu...]",
+                "wrongAnswers": {
+                  "A": "[Lý do tại sao A sai]",
+                  "B": "[Lý do tại sao B sai]",
+                  "D": "[Lý do tại sao D sai]"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "choose_two_letters",
+      "name": "Multiple Choice (Multiple Answers)",
+      "description": "Câu hỏi trắc nghiệm chọn nhiều đáp án (thường 2 đáp án) từ 5 lựa chọn A-E",
+      "instructions": "Choose TWO letters, A-E.",
+      "questionGroups": [
+        {
+          "groupName": "[Câu hỏi chung cho nhóm]",
+          "options": [
+            {
+              "key": "A",
+              "value": "[Lựa chọn A]"
+            },
+            {
+              "key": "B",
+              "value": "[Lựa chọn B]"
+            },
+            {
+              "key": "C",
+              "value": "[Lựa chọn C]"
+            },
+            {
+              "key": "D",
+              "value": "[Lựa chọn D]"
+            },
+            {
+              "key": "E",
+              "value": "[Lựa chọn E]"
+            }
+          ],
+          "questions": [
+            {
+              "id": 1,
+              "content": null,
+              "answer": null,
+              "guide": {
+                "explanation": "[Giải thích cho câu hỏi 1]",
+                "location": "[Vị trí trong bài đọc]",
+                "strategy": "[Chiến lược làm bài]"
+              }
+            },
+            {
+              "id": 2,
+              "content": null,
+              "answer": null,
+              "guide": {
+                "explanation": "[Giải thích cho câu hỏi 2]",
+                "location": "[Vị trí trong bài đọc]",
+                "strategy": "[Chiến lược làm bài]"
+              }
+            }
+          ],
+          "answers": [
+            "B",
+            "C"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "true_false_not_given",
+      "name": "True / False / Not Given",
+      "description": "Đánh giá tính đúng/sai của thông tin dựa trên nội dung bài đọc",
+      "instructions": "Do the following statements agree with the information given in the passage? Write TRUE, FALSE, or NOT GIVEN.",
+      "questionGroups": [
+        {
+          "groupName": null,
+          "questions": [
+            {
+              "id": 1,
+              "content": "[Câu phát biểu cần đánh giá]",
+              "answer": "TRUE",
+              "guide": {
+                "explanation": "[Giải thích tại sao TRUE/FALSE/NOT GIVEN]",
+                "location": "[Vị trí thông tin trong bài đọc]",
+                "strategy": "[Cách phân biệt TRUE/FALSE/NOT GIVEN]",
+                "keyWords": "[Từ khóa quan trọng]"
+              }
+            },
+            {
+              "id": 2,
+              "content": "[Câu phát biểu cần đánh giá]",
+              "answer": "FALSE",
+              "guide": {
+                "explanation": "[Giải thích tại sao FALSE]",
+                "location": "[Vị trí thông tin trong bài đọc]",
+                "strategy": "[Cách nhận biết thông tin mâu thuẫn]"
+              }
+            },
+            {
+              "id": 3,
+              "content": "[Câu phát biểu cần đánh giá]",
+              "answer": "NOT GIVEN",
+              "guide": {
+                "explanation": "[Giải thích tại sao NOT GIVEN]",
+                "location": "[Không có thông tin trong bài đọc]",
+                "strategy": "[Cách nhận biết thông tin không được đề cập]"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "yes_no_not_given",
+      "name": "Yes / No / Not Given",
+      "description": "Đánh giá quan điểm của tác giả về các phát biểu",
+      "instructions": "Do the following statements agree with the views of the writer? Write YES, NO, or NOT GIVEN.",
+      "questionGroups": [
+        {
+          "groupName": null,
+          "questions": [
+            {
+              "id": 1,
+              "content": "[Phát biểu về quan điểm tác giả]",
+              "answer": "YES",
+              "guide": {
+                "explanation": "[Giải thích quan điểm tác giả]",
+                "location": "[Vị trí thể hiện quan điểm]",
+                "strategy": "[Cách nhận biết quan điểm tác giả]",
+                "opinionIndicators": "[Từ ngữ thể hiện quan điểm: believe, think, argue...]"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "matching_headings",
+      "name": "Matching Headings",
+      "description": "Ghép tiêu đề phù hợp với từng đoạn văn",
+      "instructions": "The reading passage has [X] paragraphs, A-[X]. Choose the correct heading for each paragraph from the list of headings below.",
+      "questionGroups": [
+        {
+          "groupName": null,
+          "headingOptions": [
+            {
+              "key": "i",
+              "value": "[Tiêu đề 1]"
+            },
+            {
+              "key": "ii",
+              "value": "[Tiêu đề 2]"
+            },
+            {
+              "key": "iii",
+              "value": "[Tiêu đề 3]"
+            },
+            {
+              "key": "iv",
+              "value": "[Tiêu đề 4]"
+            },
+            {
+              "key": "v",
+              "value": "[Tiêu đề 5]"
+            }
+          ],
+          "questions": [
+            {
+              "id": "Paragraph A",
+              "content": null,
+              "answer": "iii",
+              "guide": {
+                "explanation": "[Giải thích tại sao tiêu đề này phù hợp]",
+                "mainIdea": "[Ý chính của đoạn văn]",
+                "strategy": "[Cách xác định ý chính đoạn văn]",
+                "wrongHeadings": {
+                  "i": "[Lý do tiêu đề i không phù hợp]",
+                  "ii": "[Lý do tiêu đề ii không phù hợp]"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "matching_phrases",
+      "name": "Matching Information",
+      "description": "Tìm đoạn văn chứa thông tin cụ thể",
+      "instructions": "Which paragraph contains the following information? You may use any letter more than once.",
+      "questionGroups": [
+        {
+          "groupName": null,
+          "questions": [
+            {
+              "id": 1,
+              "content": "[Mô tả thông tin cần tìm]",
+              "answer": "B",
+              "guide": {
+                "explanation": "[Giải thích tại sao thông tin này ở đoạn B]",
+                "location": "[Vị trí cụ thể trong đoạn B]",
+                "strategy": "[Cách tìm thông tin: scanning, skimming]",
+                "keyWords": "[Từ khóa để tìm kiếm]"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "matching_features",
+      "name": "Matching Features",
+      "description": "Ghép thông tin với đối tượng/người/địa điểm tương ứng",
+      "instructions": "Match each [item] with the correct [category], A-[X].",
+      "questionGroups": [
+        {
+          "groupName": null,
+          "featureOptions": [
+            {
+              "key": "A",
+              "value": "[Đối tượng A]"
+            },
+            {
+              "key": "B",
+              "value": "[Đối tượng B]"
+            },
+            {
+              "key": "C",
+              "value": "[Đối tượng C]"
+            }
+          ],
+          "questions": [
+            {
+              "id": 1,
+              "content": "[Thông tin cần ghép]",
+              "answer": "C",
+              "guide": {
+                "explanation": "[Giải thích tại sao ghép với C]",
+                "location": "[Vị trí thông tin trong bài đọc]",
+                "strategy": "[Cách nhận biết mối liên hệ]"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "matching_sentence_endings",
+      "name": "Matching Sentence Endings",
+      "description": "Hoàn thành câu bằng cách chọn phần kết thúc phù hợp",
+      "instructions": "Complete each sentence with the correct ending, A-[X].",
+      "questionGroups": [
+        {
+          "groupName": null,
+          "endingOptions": [
+            {
+              "key": "A",
+              "value": "[Phần kết thúc A]"
+            },
+            {
+              "key": "B",
+              "value": "[Phần kết thúc B]"
+            },
+            {
+              "key": "C",
+              "value": "[Phần kết thúc C]"
+            },
+            {
+              "key": "D",
+              "value": "[Phần kết thúc D]"
+            }
+          ],
+          "questions": [
+            {
+              "id": 1,
+              "content": "[Phần đầu câu]",
+              "answer": "B",
+              "guide": {
+                "explanation": "[Giải thích tại sao kết thúc B phù hợp]",
+                "location": "[Vị trí thông tin trong bài đọc]",
+                "strategy": "[Cách xác định mối liên hệ logic]",
+                "grammarNote": "[Lưu ý về ngữ pháp nếu có]"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sentence_completion",
+      "name": "Sentence Completion",
+      "description": "Hoàn thành câu bằng từ/cụm từ từ bài đọc",
+      "instructions": "Complete the sentences below. Choose NO MORE THAN [X] WORDS from the passage for each answer.",
+      "questionGroups": [
+        {
+          "groupName": null,
+          "contentSegments": [
+            { "type": "text", "value": "1. [Phần đầu câu] " },
+            { "type": "blank", "questionId": 1 },
+            { "type": "text", "value": " [phần tiếp theo].\n2. [Câu thứ 2] " },
+            { "type": "blank", "questionId": 2 },
+            { "type": "text", "value": " [kết thúc câu 2]." }
+          ],
+          "questions": [
+            {
+              "id": 1,
+              "answer": "[từ/cụm từ đáp án]",
+              "guide": {
+                "explanation": "[Giải thích đáp án]",
+                "location": "[Vị trí trong bài đọc]",
+                "strategy": "[Cách tìm từ khóa]",
+                "wordLimit": "[Lưu ý về giới hạn từ]"
+              }
+            },
+            {
+              "id": 2,
+              "answer": "[từ/cụm từ đáp án]",
+              "guide": {
+                "explanation": "[Giải thích đáp án]",
+                "location": "[Vị trí trong bài đọc]",
+                "strategy": "[Cách tìm từ khóa]"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "summary_completion",
+      "name": "Summary Completion",
+      "description": "Hoàn thành đoạn tóm tắt bằng từ/cụm từ từ bài đọc",
+      "instructions": "Complete the summary below. Choose [WORD LIMIT] from the passage for each answer.",
+      "questionGroups": [
+        {
+          "groupName": "[Tiêu đề tóm tắt]",
+          "contentSegments": [
+            { "type": "text", "value": "[Nội dung tóm tắt phần 1] " },
+            { "type": "blank", "questionId": 1 },
+            { "type": "text", "value": " [tiếp tục nội dung] " },
+            { "type": "blank", "questionId": 2 },
+            { "type": "text", "value": " [kết thúc tóm tắt]." }
+          ],
+          "questions": [
+            {
+              "id": 1,
+              "answer": "[từ đáp án]",
+              "guide": {
+                "explanation": "[Giải thích đáp án]",
+                "location": "[Vị trí trong bài đọc]",
+                "strategy": "[Cách tìm từ phù hợp]",
+                "contextClue": "[Manh mối từ ngữ cảnh]"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "note_table_flowchart_diagram_completion",
+      "name": "Note / Table / Flow-chart / Diagram Completion",
+      "description": "Hoàn thành ghi chú, bảng, sơ đồ quy trình hoặc biểu đồ",
+      "instructions": "Complete the items below. Choose the correct word or number for each answer.",
+      "questionGroups": [
+        {
+          "groupName": "Note Completion: [Tiêu đề ghi chú]",
+          "instructions": "Choose [WORD LIMIT] from the passage for each answer.",
+          "contentSegments": [
+            { "type": "text", "value": "• [Điểm 1] " },
+            { "type": "blank", "questionId": 1 },
+            { "type": "text", "value": "\n• [Điểm 2] " },
+            { "type": "blank", "questionId": 2 },
+            { "type": "text", "value": "\n• [Điểm 3] " },
+            { "type": "blank", "questionId": 3 }
+          ],
+          "questions": [
+            {
+              "id": 1,
+              "answer": "[từ đáp án]",
+              "guide": {
+                "explanation": "[Giải thích đáp án]",
+                "location": "[Vị trí trong bài đọc]",
+                "strategy": "[Cách tìm thông tin]"
+              }
+            }
+          ]
+        },
+        {
+          "groupName": "Table Completion: [Tiêu đề bảng]",
+          "instructions": "Choose [WORD LIMIT] for each answer.",
+          "contentSegments": [
+            { "type": "text", "value": "| [Cột 1] | [Cột 2] | [Cột 3] |\n|---|---|---|\n| [Hàng 1] | " },
+            { "type": "blank", "questionId": 4 },
+            { "type": "text", "value": " | [Giá trị] |\n| [Hàng 2] | [Giá trị] | " },
+            { "type": "blank", "questionId": 5 },
+            { "type": "text", "value": " |" }
+          ],
+          "questions": [
+            {
+              "id": 4,
+              "answer": "[giá trị bảng]",
+              "guide": {
+                "explanation": "[Giải thích đáp án]",
+                "location": "[Vị trí trong bài đọc]",
+                "strategy": "[Cách đọc bảng]"
+              }
+            }
+          ]
+        },
+        {
+          "groupName": "Flow-chart Completion: [Tiêu đề quy trình]",
+          "instructions": "Choose [WORD LIMIT] from the passage for each answer.",
+          "contentSegments": [
+            { "type": "text", "value": "[Bước 1] " },
+            { "type": "blank", "questionId": 6 },
+            { "type": "text", "value": "\n↓\n[Bước 2] " },
+            { "type": "blank", "questionId": 7 },
+            { "type": "text", "value": "\n↓\n[Bước 3]" }
+          ],
+          "questions": [
+            {
+              "id": 6,
+              "answer": "[từ quy trình]",
+              "guide": {
+                "explanation": "[Giải thích bước quy trình]",
+                "location": "[Vị trí trong bài đọc]",
+                "strategy": "[Cách theo dõi quy trình]"
+              }
+            }
+          ]
+        },
+        {
+          "groupName": "Diagram Labelling: [Tiêu đề biểu đồ]",
+          "instructions": "Choose [WORD LIMIT] from the passage for each answer.",
+          "contentSegments": [
+            { "type": "text", "value": "1. (Mũi tên chỉ vào [vị trí]): " },
+            { "type": "blank", "questionId": 8 },
+            { "type": "text", "value": "\n2. (Mũi tên chỉ vào [vị trí]): " },
+            { "type": "blank", "questionId": 9 }
+          ],
+          "questions": [
+            {
+              "id": 8,
+              "answer": "[nhãn biểu đồ]",
+              "guide": {
+                "explanation": "[Giải thích nhãn]",
+                "location": "[Vị trí trong bài đọc]",
+                "strategy": "[Cách đọc biểu đồ]"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "short_answer",
+      "name": "Short Answer Questions",
+      "description": "Trả lời ngắn gọn các câu hỏi bằng từ/cụm từ từ bài đọc",
+      "instructions": "Answer the questions below. Choose NO MORE THAN [X] WORDS AND/OR A NUMBER from the passage for each answer.",
+      "questionGroups": [
+        {
+          "groupName": null,
+          "questions": [
+            {
+              "id": 1,
+              "content": "[Câu hỏi ngắn]?",
+              "answer": "[đáp án ngắn]",
+              "guide": {
+                "explanation": "[Giải thích đáp án]",
+                "location": "[Vị trí trong bài đọc]",
+                "strategy": "[Cách tìm đáp án]",
+                "questionType": "[Loại câu hỏi: What, Where, When, How many...]",
+                "wordLimit": "[Lưu ý về giới hạn từ]"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "version": "1.0",
+    "description": "Template chuẩn cho tất cả các dạng bài IELTS Reading",
+    "createdDate": "2024-01-15",
+    "totalQuestionTypes": 12,
+    "usage": "Sử dụng template này để tạo các bài test IELTS Reading mới",
+    "notes": [
+      "Tất cả trường guide đều được thiết kế đầy đủ",
+      "Có thể customize instructions theo yêu cầu cụ thể",
+      "ContentSegments dùng cho các dạng bài có chỗ trống",
+      "Options/headingOptions/featureOptions/endingOptions tùy theo dạng bài",
+      "Trường guide có thể null hoặc object với các thông tin chi tiết"
+    ],
+    "validation": {
+      "requiredFields": ["type", "name", "instructions", "questionGroups"],
+      "optionalFields": ["description", "guide"],
+      "answerFormats": {
+        "multiple_choice_single": "String (A, B, C, D)",
+        "choose_two_letters": "Array of strings",
+        "true_false_not_given": "String (TRUE, FALSE, NOT GIVEN)",
+        "yes_no_not_given": "String (YES, NO, NOT GIVEN)",
+        "matching_headings": "String (i, ii, iii, iv...)",
+        "matching_phrases": "String (A, B, C...)",
+        "matching_features": "String (A, B, C...)",
+        "matching_sentence_endings": "String (A, B, C, D...)",
+        "sentence_completion": "String (word/phrase from passage)",
+        "summary_completion": "String (word/phrase from passage)",
+        "note_table_flowchart_diagram_completion": "String (word/phrase/number from passage)",
+        "short_answer": "String (word/phrase/number from passage)"
+      }
+    }
+  }
+}

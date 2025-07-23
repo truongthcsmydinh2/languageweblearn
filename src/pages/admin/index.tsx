@@ -194,6 +194,21 @@ const AdminDashboard = () => {
             <Col md={4} className="mb-3">
               <Card className="h-100">
                 <Card.Body>
+                  <Card.Title>IELTS Reading</Card.Title>
+                  <Card.Text>
+                    Quản lý bài đọc và câu hỏi IELTS Reading cho học viên.
+                  </Card.Text>
+                  <Link href="/admin/ielts-reading" passHref>
+                    <Button variant="primary">Đi đến</Button>
+                  </Link>
+                </Card.Body>
+              </Card>
+            </Col>
+          </Row>
+          <Row className="mb-4">
+            <Col md={4} className="mb-3">
+              <Card className="h-100">
+                <Card.Body>
                   <Card.Title>Cài đặt Hệ thống</Card.Title>
                   <Card.Text>
                     Quản lý các cài đặt chung, giới hạn sử dụng và thông báo.

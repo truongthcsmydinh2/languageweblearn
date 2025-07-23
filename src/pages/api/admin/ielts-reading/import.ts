@@ -1,7 +1,82 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient, IeltsQuestionType } from '@prisma/client';
 
+// Helper function to build question text from contentSegments for completion questions
+function buildQuestionTextFromContentSegments(contentSegments: any[], questionId: number): string {
+  if (!Array.isArray(contentSegments)) return '';
+  
+  // Find the target blank and extract context around it
+  let targetBlankIndex = -1;
+  let blankCounter = 0;
+  
+  // First pass: find the target blank position
+  for (let i = 0; i < contentSegments.length; i++) {
+    const segment = contentSegments[i];
+    if (segment.type === 'blank') {
+      blankCounter++;
+      if (segment.questionId === questionId) {
+        targetBlankIndex = i;
+        break;
+      }
+    }
+  }
+  
+  if (targetBlankIndex === -1) return '';
+  
+  // Extract context: previous text + blank + next text
+  let questionText = '';
+  let contextStart = Math.max(0, targetBlankIndex - 1);
+  let contextEnd = Math.min(contentSegments.length - 1, targetBlankIndex + 1);
+  
+  // Extend context to include more meaningful text
+  while (contextStart > 0 && contentSegments[contextStart].type === 'text' && 
+         contentSegments[contextStart].value && contentSegments[contextStart].value.length < 50) {
+    contextStart--;
+  }
+  
+  while (contextEnd < contentSegments.length - 1 && contentSegments[contextEnd].type === 'text' && 
+         contentSegments[contextEnd].value && contentSegments[contextEnd].value.length < 50) {
+    contextEnd++;
+  }
+  
+  // Build the question text with context
+  let currentBlankNumber = 0;
+  for (let i = 0; i <= contextEnd; i++) {
+    const segment = contentSegments[i];
+    if (segment.type === 'blank') {
+      currentBlankNumber++;
+    }
+    
+    if (i >= contextStart) {
+      if (segment.type === 'text') {
+        questionText += segment.value || '';
+      } else if (segment.type === 'blank') {
+        if (segment.questionId === questionId) {
+          questionText += `(${currentBlankNumber}) ______`;
+        } else {
+          questionText += `(${currentBlankNumber}) ______`;
+        }
+      }
+    }
+  }
+  
+  return questionText.trim();
+}
+
 const prisma = new PrismaClient();
+
+// Structured logger
+const logger = {
+  info: (message: string, data?: any) => {
+    console.log(`[${new Date().toISOString()}] INFO: ${message}`, data ? JSON.stringify(data, null, 2) : '');
+  },
+  error: (message: string, error?: any) => {
+    console.error(`[${new Date().toISOString()}] ERROR: ${message}`, error);
+  },
+  warn: (message: string, data?: any) => {
+    console.warn(`[${new Date().toISOString()}] WARN: ${message}`, data ? JSON.stringify(data, null, 2) : '');
+  }
+};
 
 // Enhanced validation function
 function validateImportData(data: any): { isValid: boolean; errors: string[] } {
@@ -12,22 +87,40 @@ function validateImportData(data: any): { isValid: boolean; errors: string[] } {
     return { isValid: false, errors };
   }
   
-  // Check for new format (with metadata)
-   if (data.metadata && data.content) {
-     // New format validation
-     if (!data.content.readingPassage) {
-       errors.push('Thiếu readingPassage trong content');
-     } else if (!data.content.readingPassage.title || typeof data.content.readingPassage.title !== 'string') {
-       errors.push('Thiếu title trong readingPassage');
-     }
-     
-     if (!Array.isArray(data.content.questionGroups)) {
-       errors.push('questionGroups phải là array');
-     } else if (data.content.questionGroups.length === 0) {
-       errors.push('Phải có ít nhất 1 nhóm câu hỏi');
-     }
-   } else {
-    // Legacy format validation
+  // Check for new format (with metadata and content)
+  if (data.metadata && data.content) {
+    // New format validation
+    if (!data.content.readingPassage) {
+      errors.push('Thiếu readingPassage trong content');
+    } else if (!data.content.readingPassage.title || typeof data.content.readingPassage.title !== 'string') {
+      errors.push('Thiếu title trong readingPassage');
+    }
+    
+    if (!Array.isArray(data.content.questionGroups)) {
+      errors.push('questionGroups phải là array');
+    } else if (data.content.questionGroups.length === 0) {
+      errors.push('Phải có ít nhất 1 nhóm câu hỏi');
+    }
+  }
+  // Check for JsonImporter format (with passage object and questionGroups)
+  else if (data.passage && typeof data.passage === 'object' && data.questionGroups) {
+    // JsonImporter format validation
+    if (!data.passage.title || typeof data.passage.title !== 'string') {
+      errors.push('Thiếu title trong passage');
+    }
+    
+    if (!data.passage.content || typeof data.passage.content !== 'string') {
+      errors.push('Thiếu content trong passage');
+    }
+    
+    if (!Array.isArray(data.questionGroups)) {
+      errors.push('questionGroups phải là array');
+    } else if (data.questionGroups.length === 0) {
+      errors.push('Phải có ít nhất 1 nhóm câu hỏi');
+    }
+  }
+  // Legacy format validation
+  else {
     if (!data.title || typeof data.title !== 'string') {
       errors.push('Thiếu title');
     }
@@ -50,224 +143,395 @@ function validateImportData(data: any): { isValid: boolean; errors: string[] } {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const startTime = Date.now();
+  logger.info('Import request started', { method: req.method });
+  
   if (req.method !== 'POST') {
+    logger.error('Method not allowed', { method: req.method });
     return res.status(405).json({ 
       success: false,
       message: 'Method not allowed. Use POST.' 
     });
   }
 
+  // Check authentication
+  const firebase_uid = req.headers.firebase_uid as string;
+  
+  if (!firebase_uid) {
+    logger.error('Unauthorized - missing firebase_uid');
+    return res.status(401).json({ 
+      success: false,
+      message: 'Unauthorized - Missing authentication' 
+    });
+  }
+
+  // Check if user is admin
+  const user = await prisma.users.findFirst({
+    where: { firebase_uid }
+  });
+
+  if (!user || !user.is_admin) {
+    logger.error('Forbidden - user is not admin');
+    return res.status(403).json({ 
+      success: false,
+      message: 'Forbidden - Admin access required' 
+    });
+  }
+
   try {
     const data = req.body;
+    logger.info('Import request received', {
+      dataKeys: Object.keys(data),
+      hasMetadata: !!data.metadata,
+      hasContent: !!data.content,
+      hasQuestionGroups: !!data.questionGroups,
+      dataType: typeof data
+    });
     
     // Validate input data
     const validation = validateImportData(data);
+    logger.info('Validation result', validation);
+    
     if (!validation.isValid) {
+      logger.error('Validation failed', validation.errors);
       return res.status(400).json({
         success: false,
         message: `Dữ liệu không hợp lệ: ${validation.errors.join(', ')}`
       });
     }
     
-    console.log('Received valid import data:', {
+    logger.info('Starting import process', {
       hasMetadata: !!data.metadata,
       hasImportMetadata: !!data.importMetadata,
       questionGroupsCount: data.content?.questionGroups?.length || data.questionGroups?.length || 0,
       source: data.importMetadata?.source || 'unknown'
     });
-    console.log('=== IMPORTING IELTS READING DATA ===');
-    let passagesCreated = 0;
-    let questionsCreated = 0;
+    
+    // Use Prisma transaction for atomicity
+    const result = await prisma.$transaction(async (tx) => {
+      let passagesCreated = 0;
+      let questionsCreated = 0;
+      let passageRecord: any;
 
-    if (data.metadata && data.content && data.content.readingPassage) {
-      const metadata = data.metadata;
-      const readingPassage = data.content.readingPassage;
-      const questionGroups = data.content.questionGroups || [];
-      // Tạo passage với cấu trúc JSON mới
-      const passageTitle = readingPassage.title || metadata.title || 'Imported Reading Passage';
+      // Handle JsonImporter format (data.passage object + data.questionGroups)
+      if (data.passage && typeof data.passage === 'object' && data.questionGroups) {
+        logger.info('Processing JsonImporter format');
+        const passage = data.passage;
+        const questionGroups = data.questionGroups;
+        
+        // Create passage record
+        const passageToCreate = {
+          title: passage.title,
+          passage_data: {
+            title: passage.title,
+            content: passage.content,
+            level: passage.level || 'intermediate',
+            timeLimit: passage.timeLimit || 60
+          },
+          summary: data.metadata || {},
+          level: passage.level || 'intermediate',
+          category: passage.category || 'reading',
+          time_limit: passage.timeLimit || 60,
+          is_active: passage.is_active ?? true,
+          content: passage.content
+        };
+        
+        logger.info('Creating passage', { title: passageToCreate.title });
+        const passageRecord = await tx.ielts_reading_passages.create({
+          data: passageToCreate
+        });
+        passagesCreated++;
       
-      // Xử lý content cho hiển thị (giữ lại định dạng cũ để tương thích)
-      let passageContent = '';
-      if (Array.isArray(readingPassage.paragraphs)) {
-        passageContent = readingPassage.paragraphs.map((p: any) => {
-          const paragraphId = p.id ? `[${p.id}] ` : '';
-          return paragraphId + p.content;
-        }).join('\n\n');
-              } else {
-        passageContent = readingPassage.content || '';
+        // Process question groups
+        for (let groupIndex = 0; groupIndex < questionGroups.length; groupIndex++) {
+          const group = questionGroups[groupIndex];
+          if (!group.questions || !Array.isArray(group.questions)) continue;
+          
+          logger.info('Processing question group', { type: group.type, questionsCount: group.questions.length });
+          
+          // Map question type
+          const questionType = mapQuestionType(group.type);
+          
+          // Prepare group data
+          const questionGroupData = {
+            instructions: group.instructions || group.name || 'No instructions',
+            question_type: questionType,
+            display_order: groupIndex + 1, // Use sequential order to avoid conflicts
+            passage_id: passageRecord.id,
+            options: group.options ? JSON.stringify(group.options) : null,
+            content: group.contentSegments ? JSON.stringify(group.contentSegments) : null
+          };
+          
+          const groupRecord = await tx.ielts_reading_question_groups.create({
+            data: questionGroupData
+          });
+          
+          // Prepare questions for batch creation
+          const questionsToCreate = group.questions.map((question: any, i: number) => ({
+            group_id: groupRecord.id,
+            question_text: question.questionText || '',
+            question_type: questionType,
+            options: question.options ? JSON.stringify(question.options) : null,
+            correct_answer: question.answer || '',
+            explanation: question.guide || null,
+            order_index: question.questionNumber || (i + 1)
+          }));
+          
+          // Create questions in batch
+          if (questionsToCreate.length > 0) {
+            await tx.ielts_reading_questions.createMany({
+              data: questionsToCreate,
+              skipDuplicates: true
+            });
+            questionsCreated += questionsToCreate.length;
+          }
+        }
+        
+        logger.info('JsonImporter format processing completed', {
+          passagesCreated,
+          questionsCreated
+        });
+        
+        return {
+          passageRecord,
+          passagesCreated,
+          questionsCreated
+        };
       }
+      // Handle new format (data.metadata + data.content)
+      else if (data.metadata && data.content && data.content.readingPassage) {
+        const metadata = data.metadata;
+        const readingPassage = data.content.readingPassage;
+        const questionGroups = data.content.questionGroups || [];
+        
+        logger.info('Processing new format', {
+          title: metadata.title,
+          level: metadata.level,
+          questionGroupCount: questionGroups.length
+        });
+        
+        // Tạo passage với cấu trúc JSON mới
+        const passageTitle = readingPassage.title || metadata.title || 'Imported Reading Passage';
+        
+        // Xử lý content cho hiển thị (giữ lại định dạng cũ để tương thích)
+        let passageContent = '';
+        if (Array.isArray(readingPassage.paragraphs)) {
+          passageContent = readingPassage.paragraphs.map((p: any) => {
+            const paragraphId = p.id ? `[${p.id}] ` : '';
+            return paragraphId + p.content;
+          }).join('\n\n');
+        } else {
+          passageContent = readingPassage.content || '';
+        }
       
-      // Trước khi lưu vào database, log chi tiết dữ liệu
-      console.log('=== IMPORT DEBUG ===');
-      console.log('passage_data:', JSON.stringify(readingPassage, null, 2));
-      console.log('content:', data.content);
-      console.log('summary:', JSON.stringify(data.summary, null, 2));
-      console.log('question_groups:', JSON.stringify(questionGroups, null, 2));
-      console.log('=== END IMPORT DEBUG ===');
+        // Log chi tiết dữ liệu trước khi lưu vào database
+        logger.info('Import debug data', {
+          passageData: readingPassage,
+          content: data.content,
+          summary: data.summary,
+          questionGroups: questionGroups
+        });
 
-      // Chuẩn hóa paragraphs cho passage_data
-      const formattedParagraphs = readingPassage.paragraphs.map((p: any, index: number) => {
-        if (typeof p === 'string') {
-          const match = p.match(/^([A-Z])\.\s*(.*)/); // Bỏ flag /s
-          if (match) {
-            return { id: match[1], content: match[2].trim() };
+        // Chuẩn hóa paragraphs cho passage_data
+        const formattedParagraphs = readingPassage.paragraphs.map((p: any, index: number) => {
+          if (typeof p === 'string') {
+            const match = p.match(/^([A-Z])\. *(.*)/); // Bỏ flag /s
+            if (match) {
+              return { id: match[1], content: match[2].trim() };
+            }
+            return { id: String.fromCharCode(65 + index), content: p };
           }
-          return { id: String.fromCharCode(65 + index), content: p };
-        }
-        // Nếu đã là object đúng chuẩn thì giữ nguyên
-        return p;
-      });
+          // Nếu đã là object đúng chuẩn thì giữ nguyên
+          return p;
+        });
 
-      const passageToCreate = {
-        title: readingPassage.title || metadata.title,
-        passage_data: {
-          title: readingPassage.title,
-          subtitle: readingPassage.subtitle,
-          paragraphs: formattedParagraphs,
-        },
-        summary: data.summary || {},
-        level: 'intermediate' as any, // Fix type cho level
-        category: metadata.title,
-        time_limit: 60,
-        is_active: true,
-        content: '',
-      };
-
-      const passageRecord = await prisma.ielts_reading_passages.create({
-        data: passageToCreate,
-      });
-      passagesCreated++;
-
-      // Xử lý các nhóm câu hỏi
-      for (const group of questionGroups) {
-        if (!group.questions || !Array.isArray(group.questions)) continue;
-
-        console.log('=== PROCESSING GROUP ===');
-        console.log('Group type:', group.type);
-        console.log('Group range:', group.range);
-        console.log('Group instructions:', group.instructions);
-        console.log('Questions count:', group.questions.length);
-
-        // Xử lý options cho mọi loại group
-        let groupOptions = null;
-        if (group.options) {
-          if (Array.isArray(group.options)) {
-            groupOptions = group.options;
-          } else if (typeof group.options === 'object') {
-            // Chuyển object key-value thành mảng {key, value}
-            groupOptions = Object.entries(group.options).map(([key, value]) => ({ key, value }));
-          }
-        } else if (group.questions && group.questions[0]?.options) {
-          // Một số loại options nằm trong từng câu hỏi
-          const qOpts = group.questions[0].options;
-          if (Array.isArray(qOpts)) {
-            groupOptions = qOpts;
-          } else if (typeof qOpts === 'object') {
-            groupOptions = Object.entries(qOpts).map(([key, value]) => ({ key, value }));
-          }
-        }
-
-        // Xử lý content/contentSegments cho các loại completion, note, table, diagram, summary
-        let groupContent = null;
-        if (group.contentSegments) {
-          groupContent = group.contentSegments;
-        } else if (group.content) {
-          groupContent = group.content;
-        }
-
-        // Đảm bảo luôn có instructions, ưu tiên trường instructions, sau đó content, sau đó contentSegments
-        let instructions = group.instructions;
-        if (!instructions) {
-          if (typeof group.content === 'string') {
-            instructions = group.content;
-          } else if (Array.isArray(group.contentSegments)) {
-            instructions = group.contentSegments.map((seg: any) => seg.value || '').join(' ');
-          } else if (group.questions && group.questions[0]?.content) {
-            instructions = group.questions[0].content;
-          } else {
-            instructions = 'No instructions';
-          }
-        }
-
-        // Chuẩn hóa question_type cho mọi loại
-        const questionType = mapQuestionType(group.type);
-
-        const questionGroupData = {
-          instructions: instructions,
-          question_type: questionType,
-          display_order: parseInt(group.range?.split('-')[0] || '0'),
-          passage_id: passageRecord.id,
-          options: groupOptions ? groupOptions : undefined,
-          content: groupContent ? groupContent : undefined
+        const passageToCreate = {
+          title: readingPassage.title || metadata.title,
+          passage_data: {
+            title: readingPassage.title,
+            subtitle: readingPassage.subtitle,
+            paragraphs: formattedParagraphs,
+          },
+          summary: data.summary || {},
+          level: 'INTERMEDIATE' as any,
+          category: metadata.title,
+          time_limit: 60,
+          is_active: true,
+          content: passageContent,
         };
 
-        console.log('=== GROUP DATA TO SAVE ===');
-        console.log('Group data:', JSON.stringify(questionGroupData, null, 2));
-
-        // Đảm bảo content và options luôn là string hoặc null
-        let groupContentStr = questionGroupData.content;
-        if (groupContentStr && typeof groupContentStr !== 'string') {
-          groupContentStr = JSON.stringify(groupContentStr);
-        }
-        let groupOptionsStr = questionGroupData.options;
-        if (groupOptionsStr && typeof groupOptionsStr !== 'string') {
-          groupOptionsStr = JSON.stringify(groupOptionsStr);
-        }
-        // Gán lại vào object lưu DB
-        questionGroupData.content = groupContentStr ?? null;
-        questionGroupData.options = groupOptionsStr ?? null;
-
-        const groupRecord = await prisma.ielts_reading_question_groups.create({
-          data: questionGroupData,
+        passageRecord = await tx.ielts_reading_passages.create({
+          data: passageToCreate,
+        });
+        passagesCreated++;
+        
+        logger.info('Created passage', { 
+          id: passageRecord.id, 
+          title: passageRecord.title 
         });
 
-        // Tạo các câu hỏi con
-        const questionsToCreate = group.questions.map((q: any) => {
-          let questionText = '';
-          
-          // Xử lý question_text theo loại
-          switch (group.type) {
-            case 'COMPLETION':
-              // Với completion, question_text có thể rỗng vì content đã ở group
-              questionText = '';
-              break;
-            case 'MULTIPLE_CHOICE_MULTIPLE_ANSWERS':
-              // Với multiple choice, lấy content từ question
-              questionText = q.content || '';
-              break;
-            default:
-              // Các loại khác
-              questionText = q.content || '';
+        // Xử lý các nhóm câu hỏi
+        for (let groupIndex = 0; groupIndex < questionGroups.length; groupIndex++) {
+          const group = questionGroups[groupIndex];
+          if (!group.questions || !Array.isArray(group.questions)) continue;
+
+          logger.info('Processing question group', {
+            type: group.type,
+            range: group.range,
+            instructions: group.instructions,
+            questionCount: group.questions.length
+          });
+
+          // Xử lý options cho mọi loại group
+          let groupOptions = null;
+          if (group.options) {
+            if (Array.isArray(group.options)) {
+              groupOptions = group.options;
+            } else if (typeof group.options === 'object') {
+              // Chuyển object key-value thành mảng {key, value}
+              groupOptions = Object.entries(group.options).map(([key, value]) => ({ key, value }));
+            }
+          } else if (group.questions && group.questions[0]?.options) {
+            // Một số loại options nằm trong từng câu hỏi
+            const qOpts = group.questions[0].options;
+            if (Array.isArray(qOpts)) {
+              groupOptions = qOpts;
+            } else if (typeof qOpts === 'object') {
+              groupOptions = Object.entries(qOpts).map(([key, value]) => ({ key, value }));
+            }
           }
 
-          return {
-            question_text: questionText,
-            question_type: mapQuestionType(group.type),
-            options: null, // Options được lưu ở group level
-            correct_answer: q.answer,
-            explanation: q.guide,
-            order_index: q.id,
-            group_id: groupRecord.id,
-          };
-        });
+          // Xử lý content/contentSegments cho các loại completion, note, table, diagram, summary
+          let groupContent = null;
+          if (group.contentSegments) {
+            groupContent = group.contentSegments;
+          } else if (group.content) {
+            groupContent = group.content;
+          }
 
-        if (questionsToCreate.length > 0) {
-          await prisma.ielts_reading_questions.createMany({
-            data: questionsToCreate,
+          // Đảm bảo luôn có instructions, ưu tiên trường instructions, sau đó content, sau đó contentSegments
+          let instructions = group.instructions;
+          if (!instructions) {
+            if (typeof group.content === 'string') {
+              instructions = group.content;
+            } else if (Array.isArray(group.contentSegments)) {
+              instructions = group.contentSegments.map((seg: any) => seg.value || '').join(' ');
+            } else if (group.questions && group.questions[0]?.content) {
+              instructions = group.questions[0].content;
+            } else {
+              instructions = 'No instructions';
+            }
+          }
+
+          // Chuẩn hóa question_type cho mọi loại
+          const questionType = mapQuestionType(group.type);
+
+          const questionGroupData = {
+            instructions: instructions,
+            question_type: questionType,
+            display_order: groupIndex + 1, // Use sequential order to avoid conflicts
+            passage_id: passageRecord.id,
+            options: groupOptions ? groupOptions : undefined,
+            content: groupContent ? groupContent : undefined
+          };
+
+          logger.info('Group data to save', { questionGroupData });
+
+          // Đảm bảo content và options luôn là string hoặc null
+          let groupContentStr = questionGroupData.content;
+          if (groupContentStr && typeof groupContentStr !== 'string') {
+            groupContentStr = JSON.stringify(groupContentStr);
+          }
+          let groupOptionsStr = questionGroupData.options;
+          if (groupOptionsStr && typeof groupOptionsStr !== 'string') {
+            groupOptionsStr = JSON.stringify(groupOptionsStr);
+          }
+          // Gán lại vào object lưu DB
+          questionGroupData.content = groupContentStr ?? null;
+          questionGroupData.options = groupOptionsStr ?? null;
+
+          const groupRecord = await tx.ielts_reading_question_groups.create({
+            data: questionGroupData,
           });
-          questionsCreated += questionsToCreate.length;
-          console.log(`Created ${questionsToCreate.length} questions for group ${groupRecord.id}`);
+          
+          logger.info('Created question group', { 
+            id: groupRecord.id, 
+            type: groupRecord.question_type,
+            questionCount: group.questions?.length || 0
+          });
+
+          // Tạo các câu hỏi con sử dụng strategy functions
+          let questionsToCreate: any[] = [];
+          
+          // Sử dụng strategy functions để xử lý từng loại nhóm câu hỏi
+          switch (group.type) {
+            case 'note_table_flowchart_diagram_completion':
+            case 'NOTE_TABLE_FLOWCHART_DIAGRAM_COMPLETION':
+            case 'COMPLETION':
+              questionsToCreate = processCompletionGroup(group, groupRecord.id);
+              break;
+            case 'MULTIPLE_CHOICE_MULTIPLE_ANSWERS':
+              questionsToCreate = processMultipleAnswerGroup(group, groupRecord.id);
+              break;
+            case 'MATCHING_HEADINGS':
+            case 'matching_headings':
+              questionsToCreate = processMatchingHeadings(group, groupRecord.id);
+              break;
+            case 'MATCHING_FEATURES':
+            case 'MATCHING_INFORMATION':
+            case 'matching_features':
+            case 'matching_information':
+              questionsToCreate = processStandardMatchingGroup(group, groupRecord.id);
+              break;
+            default:
+              questionsToCreate = processSimpleQuestionGroup(group, groupRecord.id);
+              break;
+          }
+
+          if (questionsToCreate.length > 0) {
+            logger.info('Creating questions for group', {
+              questionCount: questionsToCreate.length,
+              groupId: groupRecord.id
+            });
+            
+            await tx.ielts_reading_questions.createMany({
+              data: questionsToCreate,
+            });
+            questionsCreated += questionsToCreate.length;
+            
+            logger.info('Successfully created questions for group', {
+              questionCount: questionsToCreate.length,
+              groupId: groupRecord.id
+            });
+          }
         }
+      
+        return {
+          passageRecord,
+          passagesCreated,
+          questionsCreated
+        };
+      } else {
+        logger.error('Invalid data structure - missing required fields');
+        throw new Error('Invalid data structure.');
       }
-    } else {
-      throw new Error('Invalid data structure.');
-    }
-    console.log('=== IMPORT COMPLETED ===');
-    console.log(`Created ${passagesCreated} passages and ${questionsCreated} questions`);
+    });
+    
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+    
+    logger.info('Import completed successfully', {
+      duration,
+      passagesCreated: result.passagesCreated,
+      questionsCreated: result.questionsCreated,
+      performance: {
+        questionsPerSecond: result.questionsCreated / (duration / 1000)
+      }
+    });
     
     // Log import metadata if available
     if (data.importMetadata) {
-      console.log('Import metadata:', {
+      logger.info('Import metadata', {
         source: data.importMetadata.source,
         sourceUrl: data.importMetadata.sourceUrl,
         fileName: data.importMetadata.fileName,
@@ -275,37 +539,89 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    res.status(200).json({
+    const response = {
       success: true,
-      message: 'Import successful',
-      passagesCreated,
-      questionsCreated,
+      message: `Import thành công: ${result.passagesCreated} passage, ${result.questionsCreated} câu hỏi`,
+      passage: {
+        id: result.passageRecord.id,
+        title: result.passageRecord.title,
+        content: result.passageRecord.content,
+        summary: result.passageRecord.summary,
+        level: result.passageRecord.level,
+        category: result.passageRecord.category,
+        time_limit: result.passageRecord.time_limit,
+        is_active: result.passageRecord.is_active
+      },
+      stats: {
+        passagesCreated: result.passagesCreated,
+        questionsCreated: result.questionsCreated,
+        duration
+      },
       importMetadata: data.importMetadata || null
-    });
+    };
+    
+    logger.info('Sending success response');
+    res.status(200).json(response);
   } catch (error) {
-    console.error('=== IMPORT ERROR ===');
-    console.error('Error:', error);
+    const endTime = Date.now();
+    const duration = endTime - startTime;
     
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
-    res.status(500).json({
-      success: false,
-      message: 'Import failed',
-      error: errorMessage,
-      details: process.env.NODE_ENV === 'development' ? error : undefined
+    logger.error('Import failed', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      duration
     });
+    
+    // Handle specific Prisma errors
+    if (error instanceof Error) {
+      if (error.message.includes('P2002')) {
+        return res.status(400).json({
+          success: false,
+          message: 'Dữ liệu trùng lặp - passage hoặc question đã tồn tại',
+          error: 'DUPLICATE_DATA'
+        });
+      }
+      
+      if (error.message.includes('P2003')) {
+        return res.status(400).json({
+          success: false,
+          message: 'Dữ liệu tham chiếu không hợp lệ',
+          error: 'INVALID_REFERENCE'
+        });
+      }
+    }
+    
+    const errorResponse = {
+      success: false,
+      message: 'Import thất bại',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      details: process.env.NODE_ENV === 'development' ? error : undefined
+    };
+    
+    logger.error('Sending error response');
+    res.status(500).json(errorResponse);
   } finally {
+    logger.info('Disconnecting from database');
     await prisma.$disconnect();
   }
 }
 
 // === STRATEGY FUNCTIONS ===
 function processCompletionGroup(group: any, groupId: string) {
-  // Tạo text hoàn chỉnh với các blank
-  const fullText = group.contentSegments
-    ? group.contentSegments.map((seg: any) => seg.type === 'text' ? seg.value : '________').join('')
-    : '';
   return group.questions.map((q: any, idx: number) => {
+    // Tạo question_text riêng cho từng câu hỏi dựa trên contentSegments
+    let questionText = '';
+    
+    if (group.contentSegments && Array.isArray(group.contentSegments)) {
+      // Sử dụng logic từ buildQuestionTextFromSegments để tạo context cho từng câu hỏi
+      questionText = buildQuestionTextFromContentSegments(group.contentSegments, q.id);
+    }
+    
+    // Fallback nếu không có contentSegments hoặc không tìm thấy context
+    if (!questionText) {
+      questionText = q.content || q.questionText || `Question ${q.id}: Fill in the blank`;
+    }
+    
     // Trong vòng lặp tạo từng câu hỏi (trước khi lưu vào DB)
     console.log('=== IMPORT QUESTION DEBUG ===');
     console.log({
@@ -316,16 +632,17 @@ function processCompletionGroup(group: any, groupId: string) {
       answer: q.answer,
       options: q.options,
       guide: q.guide,
-      // ... các trường khác nếu có ...
+      generatedQuestionText: questionText,
+      hasContentSegments: !!group.contentSegments
     });
     console.log('=== END IMPORT QUESTION DEBUG ===');
+    
     return {
-      question_text: fullText,
+      question_text: questionText,
       question_type: mapQuestionType(group.type),
       options: null,
       correct_answer: q.answer,
       explanation: q.guide || '',
-      note: group.name || '',
       order_index: q.id || idx + 1,
       group_id: groupId,
     };
@@ -359,7 +676,6 @@ function processMultipleAnswerGroup(group: any, groupId: string) {
       options,
       correct_answer: correctAnswer,
       explanation: q.guide || group.guide || '',
-      note: group.name || '',
       order_index: q.id || idx + 1,
       group_id: groupId,
     };
@@ -389,7 +705,6 @@ function processMatchingHeadings(group: any, groupId: string) {
       options,
       correct_answer: q.answer,
       explanation: q.guide || '',
-      note: group.name || '',
       order_index: q.id || idx + 1,
       group_id: groupId,
     };
@@ -419,7 +734,6 @@ function processStandardMatchingGroup(group: any, groupId: string) {
       options,
       correct_answer: q.answer,
       explanation: q.guide || '',
-      note: group.name || '',
       order_index: q.id || idx + 1,
       group_id: groupId,
     };
@@ -448,7 +762,6 @@ function processSimpleQuestionGroup(group: any, groupId: string) {
       options,
       correct_answer: q.answer,
       explanation: q.guide || '',
-      note: group.name || '',
       order_index: q.id || idx + 1,
       group_id: groupId,
     };
@@ -480,6 +793,10 @@ function mapQuestionType(type: string): string {
     'SHORT_ANSWER_QUESTIONS': 'short_answer_questions',
     'MULTIPLE_CHOICE': 'multiple_choice',
     'MULTIPLE_CHOICE_5': 'multiple_choice_5',
+    
+    // Special combined completion types
+    'note_table_flowchart_diagram_completion': 'note_completion',
+    'NOTE_TABLE_FLOWCHART_DIAGRAM_COMPLETION': 'note_completion',
     
     // Multiple choice types
     'multiple_choice': 'multiple_choice',

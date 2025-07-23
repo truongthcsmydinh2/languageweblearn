@@ -197,6 +197,10 @@ model ielts_reading_passages {
   summary         Json?
   attempts        ielts_reading_attempts[]
   question_groups ielts_reading_question_groups[]
+
+  @@index([level, is_active], map: "idx_passages_level_active")
+  @@index([created_at], map: "idx_passages_created_at")
+  @@index([title], map: "idx_passages_title")
 }
 
 model ielts_reading_question_groups {
@@ -213,6 +217,9 @@ model ielts_reading_question_groups {
   questions     ielts_reading_questions[]
 
   @@index([passage_id], map: "ielts_reading_question_groups_passage_id_fkey")
+  @@index([passage_id, display_order], map: "idx_groups_passage_display_order")
+  @@index([question_type], map: "idx_groups_question_type")
+  @@unique([passage_id, display_order], map: "unique_display_order_per_passage")
 }
 
 model ielts_reading_questions {
@@ -229,6 +236,9 @@ model ielts_reading_questions {
   group          ielts_reading_question_groups @relation(fields: [group_id], references: [id], onDelete: Cascade)
 
   @@index([group_id], map: "ielts_reading_questions_group_id_fkey")
+  @@index([group_id, order_index], map: "idx_questions_group_order")
+  @@index([question_type], map: "idx_questions_type")
+  @@unique([group_id, order_index], map: "unique_order_per_group")
 }
 
 model ielts_reading_attempts {
@@ -245,6 +255,9 @@ model ielts_reading_attempts {
 
   @@index([passage_id], map: "ielts_reading_attempts_passage_id_fkey")
   @@index([firebase_uid])
+  @@index([firebase_uid, passage_id], map: "idx_attempts_user_passage")
+  @@index([completed_at], map: "idx_attempts_completed_at")
+  @@index([score], map: "idx_attempts_score")
 }
 
 model dictation_exercises {

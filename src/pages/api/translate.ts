@@ -1,66 +1,41 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { Translate } from '@google-cloud/translate/build/src/v2';
+import { NextApiRequest, NextApiResponse } from 'next';
 
-interface TranslateRequest {
-  text: string;
-  targetLanguage: 'en' | 'vi';
-  sourceLanguage?: string;
-}
-
-interface TranslateResponse {
-  translatedText: string;
-  detectedSourceLanguage?: string;
-}
-
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse<TranslateResponse | { error: string }>
-) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ message: 'Method not allowed' });
+  }
+
+  const { text, targetLanguage = 'vi' } = req.body;
+
+  if (!text) {
+    return res.status(400).json({ message: 'Text is required' });
   }
 
   try {
-    const { text, targetLanguage, sourceLanguage }: TranslateRequest = req.body;
-
-    if (!text || !targetLanguage) {
-      return res.status(400).json({ error: 'Missing required fields: text, targetLanguage' });
-    }
-
-    // Initialize Google Translate client
-    const translate = new Translate({
-      key: process.env.CLOUD_TRANSLATION_API_KEY,
+    const response = await fetch(`https://translation.googleapis.com/language/translate/v2?key=${process.env.CLOUD_TRANSLATION_API_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        q: text,
+        target: targetLanguage,
+        format: 'text'
+      })
     });
 
-    // Detect source language if not provided
-    let detectedLang = sourceLanguage;
-    if (!sourceLanguage) {
-      const [detection] = await translate.detect(text);
-      detectedLang = Array.isArray(detection) ? detection[0].language : detection.language;
-    }
-
-    // Skip translation if source and target are the same
-    if (detectedLang === targetLanguage) {
+    const data = await response.json();
+    
+    if (data.data && data.data.translations && data.data.translations[0]) {
       return res.status(200).json({
-        translatedText: text,
-        detectedSourceLanguage: detectedLang,
+        translatedText: data.data.translations[0].translatedText,
+        detectedSourceLanguage: data.data.translations[0].detectedSourceLanguage
       });
     }
 
-    // Perform translation
-    const [translation] = await translate.translate(text, {
-      from: detectedLang,
-      to: targetLanguage,
-    });
-
-    return res.status(200).json({
-      translatedText: translation,
-      detectedSourceLanguage: detectedLang,
-    });
+    return res.status(500).json({ message: 'Translation failed' });
   } catch (error) {
-    console.error('Translation error:', error);
-    return res.status(500).json({ 
-      error: 'Translation failed. Please try again.' 
-    });
+    console.error('Error calling Translation API:', error);
+    return res.status(500).json({ message: 'Internal server error' });
   }
 }

@@ -138,7 +138,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('✅ Total questions found:', groups.reduce((sum, group) => sum + group.questions.length, 0));
 
     return res.status(200).json({
-      groups: groups
+      questionGroups: groups
     });
 
   } catch (error) {
@@ -147,4 +147,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } finally {
     await prisma.$disconnect();
   }
-} 
+}

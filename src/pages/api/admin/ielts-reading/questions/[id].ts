@@ -8,13 +8,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   
   const { id } = req.query;
   const passageId = parseInt(id as string);
+  
+  console.log('[Questions API] Received request for passage ID:', id, 'parsed as:', passageId);
 
   if (isNaN(passageId)) {
+    console.log('[Questions API] Invalid passage ID');
     return res.status(400).json({ error: 'Invalid passage ID' });
   }
 
   if (req.method === 'GET') {
     try {
+      console.log('[Questions API] Querying question groups for passage ID:', passageId);
+      
       // Lấy tất cả nhóm câu hỏi và câu hỏi của bài đọc
       const questionGroups = await prisma.ielts_reading_question_groups.findMany({
         where: { passage_id: passageId },
@@ -29,6 +34,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           display_order: 'asc'
         }
       });
+      
+      console.log('[Questions API] Found question groups:', questionGroups.length);
 
       // Chuyển đổi dữ liệu và bỏ qua trường instructions
       const formattedGroups = questionGroups.map(group => ({
@@ -38,13 +45,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         display_order: group.display_order,
         questions: group.questions.map(question => ({
           id: question.id,
-          questionText: question.question_text,
-          questionType: question.question_type,
+          question_text: question.question_text,
+          question_type: question.question_type,
           options: question.options,
-          correctAnswer: question.correct_answer,
+          correct_answer: question.correct_answer,
           explanation: question.explanation,
           note: question.note,
-          orderIndex: question.order_index
+          order_index: question.order_index,
+          group_id: question.group_id,
+          passage_id: question.passage_id
         }))
       }));
 
@@ -81,4 +90,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   return res.status(405).json({ error: 'Method not allowed' });
-} 
+}
