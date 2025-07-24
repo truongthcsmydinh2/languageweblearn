@@ -152,11 +152,17 @@ const IeltsReadingAdmin: React.FC = () => {
   const handleImportComplete = async () => {
     console.log('[IeltsReadingAdmin] Import completed, refreshing passages list');
     try {
-      // Refresh the passages list to show the newly imported passage
-      await fetchPassages();
+      // Close importer first to avoid UI conflicts
       setShowImporter(false);
       setViewMode('passages');
-      console.log('[IeltsReadingAdmin] Import process completed successfully');
+      
+      // Add a small delay before refreshing to ensure the import transaction is fully committed
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Refresh the passages list to show the newly imported passage
+      await fetchPassages();
+      
+      console.log('[IeltsReadingAdmin] Import process completed successfully - passages refreshed');
     } catch (error) {
       console.error('[IeltsReadingAdmin] Error refreshing passages after import:', error);
     }

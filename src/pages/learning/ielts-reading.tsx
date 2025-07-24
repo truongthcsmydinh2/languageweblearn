@@ -117,6 +117,14 @@ const IeltsReadingPage = () => {
     });
   };
 
+  // Helper function to remove leaked answers from question text
+  const removeLeakedAnswers = (text: string) => {
+    if (!text) return text;
+    
+    // Remove patterns like "Answer: A", "Answer: B", etc.
+    return text.replace(/\s*\(?Answer:\s*[A-Z]\)?/gi, '').trim();
+  };
+
   const handleAnswer = (questionId: number, answer: string) => {
     setUserAnswers(prev => ({
       ...prev,
@@ -784,24 +792,40 @@ const IeltsReadingPage = () => {
           <div className="space-y-4">
             <div className="border-l-4 border-primary-500 pl-4">
               <div className="mb-4">
-                <h4 className="text-lg font-semibold text-green-300 mb-2">{group.instructions}</h4>
                 {group.groupName && (
                   <p className="text-gray-300 mb-3">{group.groupName}</p>
                 )}
-                {/* Hiển thị danh sách câu hỏi */}
+                {/* Hiển thị danh sách câu hỏi với hướng dẫn inline */}
                 <div className="text-sm text-gray-400 mb-3">
                   {group.questions.map((question, qIndex) => (
-                    <div key={question.id} className="mb-1">
-                      {question.order_index}. {question.question_text || question.content}
-                    </div>
-                  ))}
+                     <div key={question.id} className="mb-3">
+                       <div className="flex items-start space-x-2 mb-2">
+                         <span className="text-gray-300">{question.order_index}. {removeLeakedAnswers(question.question_text || question.content)}</span>
+                         <button
+                           onClick={() => setOpenGuides(prev => ({...prev, [question.id]: !prev[question.id]}))}
+                           className="text-xs text-blue-400 hover:text-blue-300 px-2 py-1 bg-gray-700/50 rounded transition-colors duration-200"
+                         >
+                           {openGuides[question.id] ? 'Ẩn hướng dẫn' : 'Hướng dẫn'}
+                         </button>
+                       </div>
+                       {openGuides[question.id] && (
+                         <div className="bg-gray-700 p-3 rounded mb-2 text-sm text-gray-300 ml-4">
+                           {highlightGuideText(question.guide || question.explanation || 'Không có hướng dẫn chi tiết cho câu hỏi này.')}
+                         </div>
+                       )}
+                     </div>
+                   ))}
+                  {/* Hiển thị hướng dẫn chung cho nhóm */}
+                  <div className="mt-3 p-3 bg-gray-700/30 rounded-lg">
+                    <h5 className="text-sm font-semibold text-green-300 mb-2">Hướng dẫn chung:</h5>
+                    <p className="text-gray-300 text-sm">{group.instructions}</p>
+                  </div>
                 </div>
               </div>
               
               {/* Show options for the group */}
               {group.options && (
                 <div className="mb-6">
-                  <div className="text-sm text-yellow-400 mb-3">Chọn 2 đáp án từ các lựa chọn sau:</div>
                   <div className="space-y-2">
                     {group.options.map((option: any, optionIndex: number) => {
                       const optionText = typeof option === 'string' ? option : (option.value || option);
@@ -877,7 +901,7 @@ const IeltsReadingPage = () => {
               <div key={question.id} className="border-l-4 border-primary-500 pl-4">
                 <div className="flex justify-between items-start mb-2">
                   <p className="text-gray-200 font-medium">
-                    {question.order_index}. {question.question_text || question.content}
+                    {question.order_index}. {removeLeakedAnswers(question.question_text || question.content)}
                   </p>
                   <button
                     onClick={() => setOpenGuides(prev => ({...prev, [question.id]: !prev[question.id]}))}
@@ -1258,17 +1282,73 @@ const IeltsReadingPage = () => {
             <div className="bg-gradient-to-r from-gray-800/80 to-gray-700/80 backdrop-blur-sm rounded-xl p-6 mb-6 border border-gray-600/30">
               <div className="flex justify-between items-center">
                 <div>
-                  <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent mb-2">{selectedPassage.title}</h1>
-                  <div className="flex items-center space-x-4 text-sm text-gray-400">
-                    <span className="flex items-center space-x-1">
-                      <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
-                      <span>Cấp độ: {selectedPassage.level}</span>
-                    </span>
-                    <span className="flex items-center space-x-1">
-                      <span className="w-2 h-2 bg-purple-400 rounded-full"></span>
-                      <span>{selectedPassage.question_count} câu hỏi</span>
-                    </span>
-                  </div>
+                  {(() => {
+                    const title = selectedPassage.title;
+                    // Extract Cam and Test info from title
+                    const camMatch = title.match(/Cam(?:bridge)?\s*(\d+)/i);
+                    const testMatch = title.match(/Test\s*(\d+)/i);
+                    const passageMatch = title.match(/(?:Reading\s*)?Passage\s*(\d+)/i);
+                    
+                    // Extract the main title (after the last dash or colon)
+                    const mainTitle = title.split(/[–—\-:]/).pop()?.trim() || title;
+                    
+                    if (camMatch && testMatch) {
+                      return (
+                        <div className="space-y-3">
+                          {/* Hierarchical breadcrumb */}
+                          <div className="flex items-center space-x-2 text-sm">
+                            <span className="px-3 py-1 bg-blue-600/20 text-blue-400 rounded-md font-medium border border-blue-500/30">
+                              Cambridge IELTS {camMatch[1]}
+                            </span>
+                            <span className="text-gray-500">›</span>
+                            <span className="px-3 py-1 bg-purple-600/20 text-purple-400 rounded-md font-medium border border-purple-500/30">
+                              Test {testMatch[1]}
+                            </span>
+                            {passageMatch && (
+                              <>
+                                <span className="text-gray-500">›</span>
+                                <span className="px-3 py-1 bg-green-600/20 text-green-400 rounded-md font-medium border border-green-500/30">
+                                  Passage {passageMatch[1]}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                          {/* Main title */}
+                          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                            {mainTitle}
+                          </h1>
+                          <div className="flex items-center space-x-4 text-sm text-gray-400">
+                            <span className="flex items-center space-x-1">
+                              <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                              <span>Cấp độ: {selectedPassage.level}</span>
+                            </span>
+                            <span className="flex items-center space-x-1">
+                              <span className="w-2 h-2 bg-purple-400 rounded-full"></span>
+                              <span>{selectedPassage.question_count} câu hỏi</span>
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <div>
+                          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent mb-2">
+                            {mainTitle}
+                          </h1>
+                          <div className="flex items-center space-x-4 text-sm text-gray-400">
+                            <span className="flex items-center space-x-1">
+                              <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                              <span>Cấp độ: {selectedPassage.level}</span>
+                            </span>
+                            <span className="flex items-center space-x-1">
+                              <span className="w-2 h-2 bg-purple-400 rounded-full"></span>
+                              <span>{selectedPassage.question_count} câu hỏi</span>
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
+                  })()}
                 </div>
                 <div className="flex space-x-4 items-center">
                   {/* Font size controls */}
@@ -1604,7 +1684,158 @@ return (
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <>
+            {/* Filter and Group Controls */}
+            {(() => {
+              // Extract unique Cambridge IELTS books and Tests
+              const cambridgeBooks = new Set();
+              const testsByBook = new Map();
+              
+              passages.forEach(passage => {
+                const title = passage.title;
+                const camMatch = title.match(/Cam(?:bridge)?\s*(\d+)/i);
+                const testMatch = title.match(/Test\s*(\d+)/i);
+                
+                if (camMatch && testMatch) {
+                  const bookNum = camMatch[1];
+                  const testNum = testMatch[1];
+                  cambridgeBooks.add(bookNum);
+                  
+                  if (!testsByBook.has(bookNum)) {
+                    testsByBook.set(bookNum, new Set());
+                  }
+                  testsByBook.get(bookNum).add(testNum);
+                }
+              });
+              
+              const sortedBooks = Array.from(cambridgeBooks).sort((a, b) => parseInt(b) - parseInt(a));
+              
+              return (
+                <div className="mb-8 bg-gray-800/30 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50">
+                  <h2 className="text-2xl font-bold text-gray-200 mb-4 flex items-center space-x-2">
+                    <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                    </svg>
+                    <span>Danh mục bài thi</span>
+                  </h2>
+                  
+                  <div className="space-y-4">
+                    {sortedBooks.map(bookNum => {
+                      const tests = Array.from(testsByBook.get(bookNum)).sort((a, b) => parseInt(a) - parseInt(b));
+                      const bookPassages = passages.filter(p => {
+                        const camMatch = p.title.match(/Cam(?:bridge)?\s*(\d+)/i);
+                        return camMatch && camMatch[1] === bookNum;
+                      });
+                      
+                      return (
+                        <div key={bookNum} className="bg-gray-700/30 rounded-lg p-4 border border-gray-600/30">
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-lg font-semibold text-blue-400 flex items-center space-x-2">
+                              <span className="px-3 py-1 bg-blue-600/20 rounded-md border border-blue-500/30">
+                                Cambridge IELTS {bookNum}
+                              </span>
+                              <span className="text-sm text-gray-400">({bookPassages.length} bài đọc)</span>
+                            </h3>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                            {tests.map(testNum => {
+                              const testPassages = bookPassages.filter(p => {
+                                const testMatch = p.title.match(/Test\s*(\d+)/i);
+                                return testMatch && testMatch[1] === testNum;
+                              });
+                              
+                              return (
+                                <div key={testNum} className="bg-gray-600/30 rounded-lg p-3 border border-gray-500/30 hover:border-purple-500/50 transition-all duration-200">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="px-2 py-1 bg-purple-600/20 text-purple-400 rounded text-sm font-medium border border-purple-500/30">
+                                      Test {testNum}
+                                    </span>
+                                    <span className="text-xs text-gray-400">{testPassages.length}P</span>
+                                  </div>
+                                  
+                                  <div className="space-y-1">
+                                    {testPassages.map(passage => {
+                                      const passageMatch = passage.title.match(/(?:Reading\s*)?Passage\s*(\d+)/i);
+                                      const passageNum = passageMatch ? passageMatch[1] : '?';
+                                      const mainTitle = passage.title.split(/[–—\-:]/).pop()?.trim() || passage.title;
+                                      
+                                      return (
+                                        <button
+                                          key={passage.id}
+                                          onClick={async () => {
+                                            try {
+                                              const response = await fetch(`/api/ielts-reading/questions/${passage.id}`);
+                                              const data = await response.json();
+                                              
+                                              const processedGroups = data.questionGroups?.map((group: any) => ({
+                                                ...group,
+                                                questions: group.questions?.map((question: any) => {
+                                                  let processedOptions = question.options;
+                                                  
+                                                  if (typeof question.options === 'string') {
+                                                    try {
+                                                      processedOptions = JSON.parse(question.options);
+                                                    } catch (e) {
+                                                      processedOptions = [question.options];
+                                                    }
+                                                  }
+                                                  
+                                                  if (!Array.isArray(processedOptions)) {
+                                                    processedOptions = processedOptions ? [processedOptions] : [];
+                                                  }
+                                                  
+                                                  return {
+                                                    ...question,
+                                                    options: processedOptions
+                                                  };
+                                                }) || []
+                                              })) || [];
+                                              
+                                              setPendingPassage(passage);
+                                              setPendingQuestionGroups(processedGroups);
+                                              setShowTimerModal(true);
+                                            } catch (error) {
+                                              console.error('Error fetching questions:', error);
+                                              alert('Có lỗi xảy ra khi tải câu hỏi');
+                                            }
+                                          }}
+                                          className="w-full text-left p-2 bg-gray-500/20 hover:bg-gray-500/40 rounded border border-gray-400/20 hover:border-green-500/50 transition-all duration-200 group"
+                                        >
+                                          <div className="flex items-center justify-between">
+                                            <span className="px-1.5 py-0.5 bg-green-600/20 text-green-400 rounded text-xs font-medium border border-green-500/30">
+                                              P{passageNum}
+                                            </span>
+                                            <span className="text-xs text-gray-500">{passage.question_count}Q</span>
+                                          </div>
+                                          <p className="text-xs text-gray-300 mt-1 line-clamp-2 group-hover:text-white transition-colors">
+                                            {mainTitle.length > 30 ? mainTitle.substring(0, 30) + '...' : mainTitle}
+                                          </p>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+            
+            {/* Original Grid View */}
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-200 mb-4 flex items-center space-x-2">
+                <BookOpen className="w-6 h-6 text-purple-400" />
+                <span>Tất cả bài đọc</span>
+              </h2>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {passages.map((passage) => {
               const levelColors = {
                 beginner: 'from-green-500 to-emerald-600',
@@ -1621,8 +1852,54 @@ return (
                   <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 to-purple-600/5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   <div className="relative z-10">
                     <div className="flex items-start justify-between mb-4">
-                      <h3 className="text-xl font-bold text-gray-50 group-hover:text-white transition-colors duration-300 line-clamp-2">{passage.title}</h3>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${levelBadgeColors[passage.level]} capitalize`}>
+                      <div className="flex-1">
+                        {(() => {
+                          const title = passage.title;
+                          // Extract Cam and Test info from title
+                          const camMatch = title.match(/Cam(?:bridge)?\s*(\d+)/i);
+                          const testMatch = title.match(/Test\s*(\d+)/i);
+                          const passageMatch = title.match(/(?:Reading\s*)?Passage\s*(\d+)/i);
+                          
+                          // Extract the main title (after the last dash or colon)
+                          const mainTitle = title.split(/[–—\-:]/).pop()?.trim() || title;
+                          
+                          if (camMatch && testMatch) {
+                            return (
+                              <div className="space-y-2">
+                                {/* Hierarchical breadcrumb */}
+                                <div className="flex items-center space-x-2 text-sm">
+                                  <span className="px-2 py-1 bg-blue-600/20 text-blue-400 rounded-md font-medium border border-blue-500/30">
+                                    Cambridge IELTS {camMatch[1]}
+                                  </span>
+                                  <span className="text-gray-500">›</span>
+                                  <span className="px-2 py-1 bg-purple-600/20 text-purple-400 rounded-md font-medium border border-purple-500/30">
+                                    Test {testMatch[1]}
+                                  </span>
+                                  {passageMatch && (
+                                    <>
+                                      <span className="text-gray-500">›</span>
+                                      <span className="px-2 py-1 bg-green-600/20 text-green-400 rounded-md font-medium border border-green-500/30">
+                                        Passage {passageMatch[1]}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                                {/* Main title */}
+                                <h3 className="text-xl font-bold text-gray-50 group-hover:text-white transition-colors duration-300 line-clamp-2">
+                                  {mainTitle}
+                                </h3>
+                              </div>
+                            );
+                          } else {
+                            return (
+                              <h3 className="text-xl font-bold text-gray-50 group-hover:text-white transition-colors duration-300 line-clamp-2">
+                                {mainTitle}
+                              </h3>
+                            );
+                          }
+                        })()}
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${levelBadgeColors[passage.level]} capitalize ml-4`}>
                         {passage.level}
                       </span>
                     </div>
@@ -1713,7 +1990,8 @@ return (
                );
              })}
            </div>
-         )}
+          </>
+        )}
        </div>
      </div>
    </Layout>

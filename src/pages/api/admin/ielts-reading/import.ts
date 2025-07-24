@@ -219,11 +219,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const passage = data.passage;
         const questionGroups = data.questionGroups;
         
-        // Create passage record
+        // Create passage record với title được cải thiện
+        let enhancedTitle = passage.title;
+        
+        // Trích xuất thông tin Cam và Test từ metadata nếu có
+        if (data.metadata && data.metadata.title) {
+          const camTestMatch = data.metadata.title.match(/(Cambridge IELTS \d+|Cam \d+).*?(Test \d+)/i);
+          if (camTestMatch) {
+            const camInfo = camTestMatch[1].replace('Cambridge IELTS', 'Cam');
+            const testInfo = camTestMatch[2];
+            
+            // Trích xuất Reading Passage number nếu có
+            const passageMatch = data.metadata.title.match(/Reading Passage (\d+)/i);
+            const passageInfo = passageMatch ? `Reading Passage ${passageMatch[1]}` : '';
+            
+            // Kết hợp thông tin để tạo title đầy đủ
+            if (passageInfo) {
+              enhancedTitle = `${camInfo} ${testInfo} ${passageInfo}: ${passage.title}`;
+            } else {
+              enhancedTitle = `${camInfo} ${testInfo}: ${passage.title}`;
+            }
+          }
+        }
+        
         const passageToCreate = {
-          title: passage.title,
+          title: enhancedTitle,
           passage_data: {
-            title: passage.title,
+            title: enhancedTitle,
             content: passage.content,
             level: passage.level || 'intermediate',
             timeLimit: passage.timeLimit || 60
@@ -328,8 +350,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           questionGroupCount: questionGroups.length
         });
         
-        // Tạo passage với cấu trúc JSON mới
-        const passageTitle = readingPassage.title || metadata.title || 'Imported Reading Passage';
+        // Tạo passage với cấu trúc JSON mới - kết hợp metadata và readingPassage title
+        let passageTitle = readingPassage.title || 'Imported Reading Passage';
+        
+        // Trích xuất thông tin Cam và Test từ metadata.title nếu có
+        if (metadata.title) {
+          const camTestMatch = metadata.title.match(/(Cambridge IELTS \d+|Cam \d+).*?(Test \d+)/i);
+          if (camTestMatch) {
+            const camInfo = camTestMatch[1].replace('Cambridge IELTS', 'Cam');
+            const testInfo = camTestMatch[2];
+            
+            // Trích xuất Reading Passage number nếu có
+            const passageMatch = metadata.title.match(/Reading Passage (\d+)/i);
+            const passageInfo = passageMatch ? `Reading Passage ${passageMatch[1]}` : '';
+            
+            // Kết hợp thông tin để tạo title đầy đủ
+            if (passageInfo) {
+              passageTitle = `${camInfo} ${testInfo} ${passageInfo}: ${readingPassage.title}`;
+            } else {
+              passageTitle = `${camInfo} ${testInfo}: ${readingPassage.title}`;
+            }
+          }
+        }
         
         // Xử lý content cho hiển thị (giữ lại định dạng cũ để tương thích)
         let passageContent = '';
@@ -370,15 +412,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         const passageToCreate = {
-          title: readingPassage.title || metadata.title,
+          title: passageTitle,
           passage_data: {
-            title: readingPassage.title,
+            title: passageTitle,
             subtitle: readingPassage.subtitle,
             paragraphs: formattedParagraphs,
           },
           summary: data.summary || {},
           level: 'intermediate' as any,
-          category: metadata.title,
+          category: metadata.title || 'IELTS Reading',
           time_limit: 60,
           is_active: true,
           content: passageContent,

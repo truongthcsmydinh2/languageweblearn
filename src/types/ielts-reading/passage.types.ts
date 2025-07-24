@@ -4,6 +4,7 @@ export interface Passage {
   content: string;
   level: 'beginner' | 'intermediate' | 'advanced';
   category: string;
+  genre?: string;
   time_limit: number;
   is_active: boolean;
   question_count: number;
@@ -31,9 +32,11 @@ export interface PassageActions {
 export interface PassageListProps {
   passages: Passage[];
   selectedPassage: Passage | null;
-  onSelectPassage: (passage: Passage) => void;
-  onEditPassage: (passage: Passage) => void;
-  onDeletePassage: (id: number) => void;
+  onSelect: (passage: Passage) => void;
+  onEdit: (passage: Passage) => void;
+  onDelete: (id: number) => Promise<void>;
+  onDuplicate: (id: number) => Promise<void>;
+  onToggleStatus: (id: number, is_active: boolean) => Promise<void>;
   loading?: boolean;
 }
 

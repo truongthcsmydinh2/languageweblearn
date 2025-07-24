@@ -513,13 +513,13 @@ const cleanQuestion = (question: any, group?: any): ImportQuestion => {
     
     // If still no text, use a more descriptive placeholder
     if (!questionText && question.answer) {
-      questionText = `Complete the blank with the correct word (Answer: ${question.answer})`;
+      questionText = `Complete the blank with the correct word`;
     }
   }
   
   // If no question text found, generate from answer for completion-type questions
   if (!questionText && question.answer) {
-    questionText = `Fill in the blank (Answer: ${question.answer})`;
+    questionText = `Fill in the blank`;
   }
   
   const answer = String(question.answer || '').trim();

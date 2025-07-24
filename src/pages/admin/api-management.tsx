@@ -3,9 +3,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import {
-  Container, Row, Col, Card, Button, Form, Spinner,
-  Table, Badge, Alert, Modal, InputGroup
-} from 'react-bootstrap';
+  Key, Plus, Eye, EyeOff, Edit, Trash2, CheckCircle, XCircle,
+  AlertTriangle, ChevronLeft, Search, Filter, Activity,
+  Calendar, BarChart3, Zap, Shield
+} from 'lucide-react';
 
 interface ApiKey {
   id: number;
@@ -288,275 +289,466 @@ const ApiManagement = () => {
 
   if (loading) {
     return (
-      <Container className="d-flex justify-content-center align-items-center" style={{ minHeight: '70vh' }}>
-        <Spinner animation="border" role="status">
-          <span className="visually-hidden">Đang tải...</span>
-        </Spinner>
-      </Container>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Đang tải dữ liệu...</p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Container className="py-5">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <div>
-          <h1>Quản lý API</h1>
-          <p className="text-muted">Quản lý API keys và cài đặt kết nối</p>
-        </div>
-        <div>
-          <Button variant="outline-secondary" onClick={() => router.push('/admin')} className="me-2">
-            Quay lại Dashboard
-          </Button>
-          <Button variant="primary" onClick={() => setShowAddModal(true)}>
-            Thêm API Key
-          </Button>
-        </div>
-      </div>
-
-      {error && <Alert variant="danger">{error}</Alert>}
-      {successMessage && <Alert variant="success">{successMessage}</Alert>}
-
-      <Row className="mb-4">
-        <Col lg={8}>
-          <Card>
-            <Card.Header>
-              <div className="d-flex justify-content-between align-items-center">
-                <h5 className="mb-0">API Keys</h5>
-                <Button variant="outline-primary" size="sm" onClick={fetchApiKeys}>
-                  <i className="bi bi-arrow-clockwise"></i> Làm mới
-                </Button>
-              </div>
-            </Card.Header>
-            <Card.Body>
-              {isLoading ? (
-                <div className="text-center py-4">
-                  <Spinner animation="border" />
-                  <p className="mt-2">Đang tải danh sách API keys...</p>
-                </div>
-              ) : apiKeys.length > 0 ? (
-                <Table responsive striped hover>
-                  <thead>
-                    <tr>
-                      <th>Tên</th>
-                      <th>Dịch vụ</th>
-                      <th>Key</th>
-                      <th>Trạng thái</th>
-                      <th>Lượt sử dụng</th>
-                      <th>Hành động</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {apiKeys.map(apiKey => (
-                      <tr key={apiKey.id}>
-                        <td>{apiKey.name}</td>
-                        <td>
-                          <Badge bg={getServiceColor(apiKey.service)} className="text-white">
-                            {getServiceIcon(apiKey.service)} {apiKey.service.toUpperCase()}
-                          </Badge>
-                        </td>
-                        <td>
-                          <code>{apiKey.key}</code>
-                          <Button 
-                            variant="link" 
-                            size="sm" 
-                            className="p-0 ms-2"
-                            onClick={() => viewKey(apiKey)}
-                          >
-                            <i className="bi bi-eye"></i>
-                          </Button>
-                        </td>
-                        <td>
-                          <Form.Check 
-                            type="switch"
-                            checked={apiKey.status === 'active'}
-                            onChange={(e) => toggleKeyStatus(apiKey.id, apiKey.status)}
-                            label={apiKey.status === 'active' ? "Đang hoạt động" : "Vô hiệu hóa"}
-                          />
-                        </td>
-                        <td>{apiKey.usage_count}</td>
-                        <td>
-                          <Button variant="outline-danger" size="sm" onClick={() => deleteKey(apiKey.id)}>
-                            <i className="bi bi-trash"></i>
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </Table>
-              ) : (
-                <div className="text-center py-4">
-                  <p>Không có API key nào. Hãy thêm API key mới để bắt đầu.</p>
-                  <Button variant="primary" onClick={() => setShowAddModal(true)}>
-                    Thêm API Key
-                  </Button>
-                </div>
-              )}
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col lg={4}>
-          <Card>
-            <Card.Header>
-              <h5 className="mb-0">Kiểm tra kết nối</h5>
-            </Card.Header>
-            <Card.Body>
-              <p>Kiểm tra kết nối đến các API dịch vụ</p>
-              <Button 
-                variant="primary" 
-                className="w-100"
-                onClick={testApiConnection}
-                disabled={isTesting}
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 flex items-center">
+                <Key className="w-8 h-8 mr-3 text-blue-600" />
+                Quản lý API Keys
+              </h1>
+              <p className="text-gray-600 mt-2">Quản lý các khóa API cho các dịch vụ AI</p>
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => router.push('/admin')}
+                className="inline-flex items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
               >
-                {isTesting ? (
-                  <>
-                    <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" />
-                    {' '}Đang kiểm tra...
-                  </>
-                ) : 'Kiểm tra tất cả API'}
-              </Button>
+                <ChevronLeft className="w-4 h-4 mr-2" />
+                Quay lại Dashboard
+              </button>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Thêm API Key
+              </button>
+            </div>
+          </div>
+        </div>
 
-              {testResults && !testResults.error && (
-                <div className="mt-4">
-                  <h6>Kết quả kiểm tra:</h6>
-                  <ul className="list-group">
-                    {Object.entries(testResults).map(([service, result]: [string, any]) => (
-                      <li key={service} className="list-group-item d-flex justify-content-between align-items-center">
-                        <div>
-                          <span className="me-2">{getServiceIcon(service)}</span>
-                          <strong className="text-capitalize">{service}</strong>
-                          <p className="mb-0 small">{result.message}</p>
+        {/* Success Message */}
+        {successMessage && (
+          <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg flex items-center">
+            <CheckCircle className="w-5 h-5 mr-2" />
+            {successMessage}
+            <button
+              onClick={() => setSuccessMessage(null)}
+              className="ml-auto text-green-500 hover:text-green-700"
+            >
+              <XCircle className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center">
+            <AlertTriangle className="w-5 h-5 mr-2" />
+            {error}
+            <button
+              onClick={() => setError(null)}
+              className="ml-auto text-red-500 hover:text-red-700"
+            >
+              <XCircle className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Filters */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                     type="text"
+                     placeholder="Tìm kiếm API key..."
+                     value={searchTerm}
+                     onChange={(e) => setSearchTerm(e.target.value)}
+                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                   />
+              </div>
+            </div>
+            <div className="md:w-48">
+              <div className="relative">
+                <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <select
+                       value={serviceFilter}
+                       onChange={(e) => setServiceFilter(e.target.value)}
+                       className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+                     >
+                       <option value="">Tất cả dịch vụ</option>
+                       <option value="google">Google</option>
+                       <option value="openai">OpenAI</option>
+                       <option value="azure">Azure</option>
+                       <option value="anthropic">Anthropic</option>
+                     </select>
+              </div>
+            </div>
+            <div className="md:w-48">
+              <div className="relative">
+                <Activity className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <select
+                       value={statusFilter}
+                       onChange={(e) => setStatusFilter(e.target.value)}
+                       className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+                     >
+                       <option value="">Tất cả trạng thái</option>
+                       <option value="active">Hoạt động</option>
+                       <option value="inactive">Không hoạt động</option>
+                     </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-gray-900">API Keys</h3>
+                <button
+                  onClick={fetchApiKeys}
+                  className="inline-flex items-center px-3 py-1.5 border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md text-sm transition-colors"
+                >
+                  <Activity className="w-4 h-4 mr-1" />
+                  Làm mới
+                </button>
+              </div>
+              <div className="p-6">
+                {isLoading ? (
+                  <div className="text-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="mt-4 text-gray-600">Đang tải danh sách API keys...</p>
+                  </div>
+                ) : apiKeys.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dịch vụ</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Key</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lượt sử dụng</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {apiKeys.map(apiKey => (
+                          <tr key={apiKey.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{apiKey.name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                apiKey.service === 'google' ? 'bg-red-100 text-red-800' :
+                                apiKey.service === 'openai' ? 'bg-green-100 text-green-800' :
+                                apiKey.service === 'azure' ? 'bg-blue-100 text-blue-800' :
+                                'bg-purple-100 text-purple-800'
+                              }`}>
+                                {getServiceIcon(apiKey.service)} {apiKey.service.toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <code className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">{apiKey.key}</code>
+                                <button
+                                  onClick={() => viewKey(apiKey)}
+                                  className="ml-2 text-blue-600 hover:text-blue-900 p-1 rounded-md hover:bg-blue-50"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <label className="flex items-center">
+                                <input
+                                  type="checkbox"
+                                  checked={apiKey.status === 'active'}
+                                  onChange={() => toggleKeyStatus(apiKey.id, apiKey.status)}
+                                  className="sr-only"
+                                />
+                                <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                  apiKey.status === 'active' ? 'bg-blue-600' : 'bg-gray-200'
+                                }`}>
+                                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                    apiKey.status === 'active' ? 'translate-x-6' : 'translate-x-1'
+                                  }`} />
+                                </div>
+                                <span className="ml-2 text-sm text-gray-700">
+                                  {apiKey.status === 'active' ? 'Đang hoạt động' : 'Vô hiệu hóa'}
+                                </span>
+                              </label>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{apiKey.usage_count}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                              <button
+                                onClick={() => deleteKey(apiKey.id)}
+                                className="text-red-600 hover:text-red-900 p-1 rounded-md hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Key className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                    <p className="text-gray-500 mb-4">Không có API key nào. Hãy thêm API key mới để bắt đầu.</p>
+                    <button
+                      onClick={() => setShowAddModal(true)}
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Thêm API Key
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">Kiểm tra kết nối</h3>
+              </div>
+              <div className="p-6">
+                <p className="text-gray-600 mb-4">Kiểm tra kết nối đến các API dịch vụ</p>
+                <button
+                  onClick={testApiConnection}
+                  disabled={isTesting}
+                  className="w-full inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors"
+                >
+                  {isTesting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Đang kiểm tra...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4 mr-2" />
+                      Kiểm tra tất cả API
+                    </>
+                  )}
+                </button>
+
+                {testResults && !testResults.error && (
+                  <div className="mt-6">
+                    <h4 className="text-sm font-medium text-gray-900 mb-3">Kết quả kiểm tra:</h4>
+                    <div className="space-y-3">
+                      {Object.entries(testResults).map(([service, result]: [string, any]) => (
+                        <div key={service} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center">
+                            <span className="text-lg mr-2">{getServiceIcon(service)}</span>
+                            <div>
+                              <p className="font-medium text-gray-900 capitalize">{service}</p>
+                              <p className="text-sm text-gray-600">{result.message}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              result.status === 'success' ? 'bg-green-100 text-green-800' :
+                              result.status === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {result.status === 'success' ? 'Thành công' :
+                               result.status === 'warning' ? 'Cảnh báo' : 'Lỗi'}
+                            </span>
+                            {result.latency && <div className="text-xs text-gray-500 mt-1">{result.latency}</div>}
+                          </div>
                         </div>
-                        <div className="text-end">
-                          {getStatusBadge(result.status)}
-                          {result.latency && <div className="small">{result.latency}</div>}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-              {testResults && testResults.error && (
-                <Alert variant="danger" className="mt-3">
-                  {testResults.error}
-                </Alert>
-              )}
-            </Card.Body>
-          </Card>
+                {testResults && testResults.error && (
+                  <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                    <div className="flex items-center">
+                      <AlertTriangle className="w-5 h-5 mr-2" />
+                      {testResults.error}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
 
-          <Card className="mt-3">
-            <Card.Header>
-              <h5 className="mb-0">Thông tin sử dụng</h5>
-            </Card.Header>
-            <Card.Body>
-              <p>Theo dõi chi tiết việc sử dụng API và token</p>
-              <Link href="/admin/token-usage" passHref>
-                <Button variant="outline-primary" className="w-100">
-                  Xem thống kê chi tiết
-                </Button>
-              </Link>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 mt-6">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">Thông tin sử dụng</h3>
+              </div>
+              <div className="p-6">
+                <p className="text-gray-600 mb-4">Theo dõi chi tiết việc sử dụng API và token</p>
+                <Link href="/admin/token-usage">
+                  <a className="w-full inline-flex items-center justify-center px-4 py-2 border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+                    <BarChart3 className="w-4 h-4 mr-2" />
+                    Xem thống kê chi tiết
+                  </a>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
 
       {/* Modal thêm API key mới */}
-      <Modal show={showAddModal} onHide={() => setShowAddModal(false)}>
-        <Modal.Header closeButton>
-          <Modal.Title>Thêm API Key mới</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Form>
-            <Form.Group className="mb-3">
-              <Form.Label>Tên</Form.Label>
-              <Form.Control 
-                type="text" 
-                placeholder="Nhập tên để nhận diện API key này"
-                value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-              />
-              <Form.Text muted>
-                Ví dụ: "Gemini API Production", "OpenAI Testing"
-              </Form.Text>
-            </Form.Group>
-
-            <Form.Group className="mb-3">
-              <Form.Label>Dịch vụ</Form.Label>
-              <Form.Select 
-                value={formData.service}
-                onChange={(e) => setFormData({...formData, service: e.target.value})}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900">Thêm API Key mới</h3>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100"
               >
-                <option value="google">Google (Gemini)</option>
-                <option value="openai">OpenAI</option>
-                <option value="huggingface">Hugging Face</option>
-                <option value="anthropic">Anthropic (Claude)</option>
-              </Form.Select>
-            </Form.Group>
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <form onSubmit={handleAddKey}>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Tên</label>
+                  <input
+                    type="text"
+                    placeholder="Nhập tên để nhận diện API key này"
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <p className="text-sm text-gray-500 mt-1">
+                    Ví dụ: "Gemini API Production", "OpenAI Testing"
+                  </p>
+                </div>
 
-            <Form.Group className="mb-3">
-              <Form.Label>API Key</Form.Label>
-              <Form.Control 
-                type="password" 
-                placeholder="Nhập API key"
-                value={formData.key}
-                onChange={(e) => setFormData({...formData, key: e.target.value})}
-              />
-              <Form.Text muted>
-                API key sẽ được mã hóa trước khi lưu vào cơ sở dữ liệu.
-              </Form.Text>
-            </Form.Group>
-          </Form>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowAddModal(false)}>
-            Hủy
-          </Button>
-          <Button 
-            variant="primary" 
-            onClick={handleAddKey}
-            disabled={!formData.key || !formData.name}
-          >
-            Thêm API Key
-          </Button>
-        </Modal.Footer>
-      </Modal>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Dịch vụ</label>
+                  <select
+                    value={formData.service}
+                    onChange={(e) => setFormData({...formData, service: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="google">Google (Gemini)</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="huggingface">Hugging Face</option>
+                    <option value="anthropic">Anthropic (Claude)</option>
+                  </select>
+                </div>
+
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">API Key</label>
+                  <input
+                    type="password"
+                    placeholder="Nhập API key"
+                    value={formData.key}
+                    onChange={(e) => setFormData({...formData, key: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <p className="text-sm text-gray-500 mt-1">
+                    API key sẽ được mã hóa trước khi lưu vào cơ sở dữ liệu.
+                  </p>
+                </div>
+              </form>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleAddKey}
+                disabled={!formData.key || !formData.name}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors inline-flex items-center"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Thêm API Key
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal xem chi tiết API key */}
-      <Modal show={showKeyModal} onHide={() => setShowKeyModal(false)}>
-        <Modal.Header closeButton>
-          <Modal.Title>{selectedKey?.name}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {selectedKey && (
-            <>
-              <p><strong>Dịch vụ:</strong> {getServiceIcon(selectedKey.service)} {selectedKey.service.toUpperCase()}</p>
-              <p><strong>API Key:</strong></p>
-              <InputGroup className="mb-3">
-                <Form.Control
-                  type="text"
-                  value={selectedKey.key}
-                  readOnly
-                />
-                <Button variant="outline-secondary">
-                  <i className="bi bi-clipboard"></i>
-                </Button>
-              </InputGroup>
-              <p><strong>Trạng thái:</strong> {selectedKey.status === 'active' ? 'Đang hoạt động' : 'Vô hiệu hóa'}</p>
-              <p><strong>Ngày tạo:</strong> {new Date(selectedKey.created_at).toLocaleString()}</p>
-              {selectedKey.last_used && (
-                <p><strong>Lần sử dụng cuối:</strong> {new Date(selectedKey.last_used).toLocaleString()}</p>
-              )}
-              <p><strong>Lượt sử dụng:</strong> {selectedKey.usage_count}</p>
-            </>
-          )}
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowKeyModal(false)}>
-            Đóng
-          </Button>
-        </Modal.Footer>
-      </Modal>
-    </Container>
+      {showKeyModal && selectedKey && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900">{selectedKey.name}</h3>
+              <button
+                onClick={() => setShowKeyModal(false)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Dịch vụ:</p>
+                  <p className="text-gray-900">{getServiceIcon(selectedKey.service)} {selectedKey.service.toUpperCase()}</p>
+                </div>
+                
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-2">API Key:</p>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="text"
+                      value={selectedKey.key}
+                      readOnly
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
+                    />
+                    <button
+                      onClick={() => navigator.clipboard.writeText(selectedKey.key)}
+                      className="px-3 py-2 border border-gray-300 text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Trạng thái:</p>
+                  <p className="text-gray-900">{selectedKey.status === 'active' ? 'Đang hoạt động' : 'Vô hiệu hóa'}</p>
+                </div>
+                
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Ngày tạo:</p>
+                  <p className="text-gray-900">{new Date(selectedKey.created_at).toLocaleString()}</p>
+                </div>
+                
+                {selectedKey.last_used && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Lần sử dụng cuối:</p>
+                    <p className="text-gray-900">{new Date(selectedKey.last_used).toLocaleString()}</p>
+                  </div>
+                )}
+                
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Lượt sử dụng:</p>
+                  <p className="text-gray-900">{selectedKey.usage_count}</p>
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
+              <button
+                onClick={() => setShowKeyModal(false)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
+    </div>
   );
 };
 
